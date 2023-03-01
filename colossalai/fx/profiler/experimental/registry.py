@@ -14,8 +14,7 @@ class ProfilerRegistry:
 
     def get(self, source):
         assert source in self.store
-        target = self.store[source]
-        return target
+        return self.store[source]
 
     def has(self, source):
         return source in self.store

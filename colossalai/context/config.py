@@ -26,8 +26,7 @@ class Config(dict):
 
     def __getattr__(self, key):
         try:
-            value = super(Config, self).__getitem__(key)
-            return value
+            return super(Config, self).__getitem__(key)
         except KeyError:
             raise AttributeError(key)
 

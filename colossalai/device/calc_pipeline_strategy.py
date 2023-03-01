@@ -13,14 +13,13 @@ def get_submesh_choices(num_hosts, num_devices_per_host, mode="new"):
     assert pow(2, p) == num_devices_per_host, ("Only supports the cases where num_devices_per_host is power of two, "
                                                f"while now num_devices_per_host = {num_devices_per_host}")
     if mode == "alpa":
-        for i in range(p + 1):
-            submesh_choices.append((1, pow(2, i)))
-        for i in range(2, num_hosts + 1):
-            submesh_choices.append((i, num_devices_per_host))
+        submesh_choices.extend((1, pow(2, i)) for i in range(p + 1))
+        submesh_choices.extend(
+            (i, num_devices_per_host) for i in range(2, num_hosts + 1)
+        )
     elif mode == "new":
         for i in range(p // 2 + 1):
-            for j in range(i, p - i + 1):
-                submesh_choices.append((pow(2, i), pow(2, j)))
+            submesh_choices.extend((pow(2, i), pow(2, j)) for j in range(i, p - i + 1))
     return submesh_choices
 
 

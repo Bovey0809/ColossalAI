@@ -86,11 +86,9 @@ class ColoTracer(Tracer):
         """
 
         if self.tracer_type == TracerType.DEFAULT:
-            # since meta_args is not given
-            # we just fall back to the original torch.fx.Tracer
-            proxy = super().create_proxy(kind, target, args, kwargs, name, type_expr, proxy_factory_fn)
-            return proxy
-
+            return super().create_proxy(
+                kind, target, args, kwargs, name, type_expr, proxy_factory_fn
+            )
         # if graph is traced for auto parallelism module, some extra node will be added during
         # graph construction to deal with the compatability between bias addition and all reduce.
 
@@ -152,34 +150,40 @@ class ColoTracer(Tracer):
     def _module_getattr(self, attr, attr_val, parameter_proxy_cache):
         if getattr(self, "_disable_module_getattr", False):
             return attr_val
-        else:
             # return super()._module_getattr(attr, attr_val, parameter_proxy_cache)
-            def maybe_get_proxy_for_attr(attr_val, collection_to_search, parameter_proxy_cache):
-                for n, p in collection_to_search:
-                    if attr_val is p:
-                        if n not in parameter_proxy_cache:
-                            kwargs = {}
-                            if "proxy_factory_fn" in inspect.signature(self.create_proxy).parameters:
-                                kwargs["proxy_factory_fn"] = (None if not self.param_shapes_constant else
-                                                              lambda node: ParameterProxy(self, node, n, attr_val))
-                            val_proxy = self.create_proxy("get_attr", n, (), {}, **kwargs)    # type: ignore[arg-type]
-                            parameter_proxy_cache[n] = val_proxy
-                        return parameter_proxy_cache[n]
-                return None
+        def maybe_get_proxy_for_attr(attr_val, collection_to_search, parameter_proxy_cache):
+            for n, p in collection_to_search:
+                if attr_val is p:
+                    if n not in parameter_proxy_cache:
+                        kwargs = {}
+                        if "proxy_factory_fn" in inspect.signature(self.create_proxy).parameters:
+                            kwargs["proxy_factory_fn"] = (
+                                (
+                                    lambda node: ParameterProxy(
+                                        self, node, n, attr_val
+                                    )
+                                )
+                                if self.param_shapes_constant
+                                else None
+                            )
+                        val_proxy = self.create_proxy("get_attr", n, (), {}, **kwargs)    # type: ignore[arg-type]
+                        parameter_proxy_cache[n] = val_proxy
+                    return parameter_proxy_cache[n]
+            return None
 
-            if isinstance(attr_val, torch.nn.Parameter):
-                maybe_parameter_proxy = maybe_get_proxy_for_attr(attr_val, self.root.named_parameters(),
-                                                                 parameter_proxy_cache)
-                if maybe_parameter_proxy is not None:
-                    return maybe_parameter_proxy
+        if isinstance(attr_val, torch.nn.Parameter):
+            maybe_parameter_proxy = maybe_get_proxy_for_attr(attr_val, self.root.named_parameters(),
+                                                             parameter_proxy_cache)
+            if maybe_parameter_proxy is not None:
+                return maybe_parameter_proxy
 
-            if self.proxy_buffer_attributes and isinstance(attr_val, torch.Tensor):
-                maybe_buffer_proxy = maybe_get_proxy_for_attr(attr_val, self.root.named_buffers(),
-                                                              parameter_proxy_cache)
-                if maybe_buffer_proxy is not None:
-                    return maybe_buffer_proxy
+        if self.proxy_buffer_attributes and isinstance(attr_val, torch.Tensor):
+            maybe_buffer_proxy = maybe_get_proxy_for_attr(attr_val, self.root.named_buffers(),
+                                                          parameter_proxy_cache)
+            if maybe_buffer_proxy is not None:
+                return maybe_buffer_proxy
 
-            return attr_val
+        return attr_val
 
     def call_module(self, m, forward, args, kwargs):
         self.orig_forward = forward
@@ -213,31 +217,18 @@ class ColoTracer(Tracer):
     def _meta_data_computing(self, kind, target, args, kwargs):
 
         if kind == "placeholder" and target in self.meta_args and self.meta_args[target].is_meta:
-            meta_out = self.meta_args[target]
-            return meta_out
-
-        if target in self.orig_torch_tensor_methods:
-            # NOTE: tensor constructors in PyTorch define the `device` argument as
-            # *kwargs-only*. That is why this works. If you add methods to
-            # _TORCH_METHODS_TO_PATCH that do not define `device` as kwarg-only,
-            # this will break and you will likely see issues where we cannot infer
-            # the size of the output.
-            if "device" in kwargs:
-                kwargs["device"] = "meta"
+            return self.meta_args[target]
+        if target in self.orig_torch_tensor_methods and "device" in kwargs:
+            kwargs["device"] = "meta"
 
         try:
             args_metas, kwargs_metas = extract_meta(*args, **kwargs)
 
             if kind == "call_function":
-                # Our meta data will not record the nn.parameter.Parameter attribute。
-                # It works fine in most of the case, but it may cause some problems after
-                # the bias addition manipulation.
-                # Therefore, I need to record the nn.parameter.Parameter attribute for the operation
-                # added by the bias addition manipulation following the get_attr node.
-                convert_to_parameter = False
-                if target in (torch.transpose, torch.reshape) and isinstance(args_metas[0],
-                                                                             torch.nn.parameter.Parameter):
-                    convert_to_parameter = True
+                convert_to_parameter = target in (
+                    torch.transpose,
+                    torch.reshape,
+                ) and isinstance(args_metas[0], torch.nn.parameter.Parameter)
                 # fetch patched function
                 if meta_patched_function.has(target):
                     meta_target = meta_patched_function.get(target)
@@ -254,14 +245,9 @@ class ColoTracer(Tracer):
                     meta_out = torch.nn.Parameter(meta_out)
 
             elif kind == "call_method":
-                # Our meta data will not record the nn.parameter.Parameter attribute。
-                # It works fine in most of the case, but it may cause some problems after
-                # the bias addition manipulation.
-                # Therefore, I need to record the nn.parameter.Parameter attribute for the operation
-                # added by the bias addition manipulation following the get_attr node.
-                convert_to_parameter = False
-                if target in (torch.Tensor.view,) and isinstance(args_metas[0], torch.nn.parameter.Parameter):
-                    convert_to_parameter = True
+                convert_to_parameter = target in (
+                    torch.Tensor.view,
+                ) and isinstance(args_metas[0], torch.nn.parameter.Parameter)
                 method = getattr(args_metas[0].__class__, target)
 
                 # fetch patched method

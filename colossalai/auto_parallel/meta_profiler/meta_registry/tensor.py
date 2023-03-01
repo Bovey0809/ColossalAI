@@ -52,7 +52,7 @@ def tensor_related_metainfo(bwd_mem_out_factor: float = 1, bwd_mem_tmp_factor: f
         # store fwd_in, fwd_buffer, fwd_out
         fwd_in = []
         fwd_buffer = []
-        if isinstance(outputs, tuple) or isinstance(outputs, list) or isinstance(outputs, dict):
+        if isinstance(outputs, (tuple, list, dict)):
             # tuple of tensors
             fwd_out = [torch.zeros_like(tensor) for tensor in outputs]
         else:

@@ -35,7 +35,7 @@ def convert_to_torch_amp(model: nn.Module,
     """
     model = TorchAMPModel(model)
     if amp_config is None:
-        amp_config = dict()
+        amp_config = {}
     optimizer = TorchAMPOptimizer(optimizer, **amp_config)
     if criterion:
         criterion = TorchAMPLoss(criterion)

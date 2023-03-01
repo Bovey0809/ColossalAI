@@ -79,14 +79,22 @@ class LayerNormGenerator(StrategyGenerator):
         backward_size_mapping.pop("output")
         # compute fwd cost incurred
         # fwd_cost = input + other + bias + output
-        fwd_activation_cost = sum([v for k, v in forward_size_mapping.items() if not self.is_param(k)])
-        fwd_parameter_cost = sum([v for k, v in forward_size_mapping.items() if self.is_param(k)])
+        fwd_activation_cost = sum(
+            v for k, v in forward_size_mapping.items() if not self.is_param(k)
+        )
+        fwd_parameter_cost = sum(
+            v for k, v in forward_size_mapping.items() if self.is_param(k)
+        )
         fwd_mem_cost = MemoryCost(activation=fwd_activation_cost, parameter=fwd_parameter_cost)
 
         # compute bwd cost incurred
         # bwd_cost = input_grad + other_grad + bias_grad
-        bwd_activation_cost = sum([v for k, v in backward_size_mapping.items() if not self.is_param(k)])
-        bwd_parameter_cost = sum([v for k, v in backward_size_mapping.items() if self.is_param(k)])
+        bwd_activation_cost = sum(
+            v for k, v in backward_size_mapping.items() if not self.is_param(k)
+        )
+        bwd_parameter_cost = sum(
+            v for k, v in backward_size_mapping.items() if self.is_param(k)
+        )
         bwd_mem_cost = MemoryCost(activation=bwd_activation_cost, parameter=bwd_parameter_cost)
 
         # compute total cost
@@ -114,15 +122,12 @@ class LayerNormGenerator(StrategyGenerator):
         # if there is only one sharding dimension, we should use the value instead of list as logical_process_axis.
         if len(total_mesh_dim_list) == 1:
             total_mesh_dim_list = total_mesh_dim_list[0]
-        communication_action_mapping = {}
-
         other_comm_action = self.get_communication_action(
             sharding_spec=sharding_spec_mapping["other"],
             communication_pattern=CollectiveCommPattern.IDENTITY_FWD_ALLREDUCE_BWD,
             logical_process_axis=total_mesh_dim_list,
             comm_type=CommType.HOOK)
-        communication_action_mapping["other"] = other_comm_action
-
+        communication_action_mapping = {"other": other_comm_action}
         if self.has_bias:
             bias_comm_action = self.get_communication_action(
                 sharding_spec=sharding_spec_mapping["bias"],
@@ -131,11 +136,11 @@ class LayerNormGenerator(StrategyGenerator):
                 comm_type=CommType.HOOK)
             communication_action_mapping["bias"] = bias_comm_action
 
-        strategy = self.get_sharding_strategy(name=name,
-                                              sharding_spec_mapping=sharding_spec_mapping,
-                                              communication_action_mapping=communication_action_mapping)
-
-        return strategy
+        return self.get_sharding_strategy(
+            name=name,
+            sharding_spec_mapping=sharding_spec_mapping,
+            communication_action_mapping=communication_action_mapping,
+        )
 
     def split_input_batch_single_mesh_dim(self, mesh_dim_0, batch_dimension_length):
         strategy_list = []
@@ -155,7 +160,7 @@ class LayerNormGenerator(StrategyGenerator):
 
     @ignore_sharding_exception
     def non_split(self):
-        name = f'RR = RR x R'
+        name = 'RR = RR x R'
         dim_partition_dict_mapping = {
             "input": {},
             "other": {},

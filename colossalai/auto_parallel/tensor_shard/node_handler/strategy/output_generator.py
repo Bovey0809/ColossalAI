@@ -72,10 +72,11 @@ class OutputGenerator(OutputStrategyGenerator):
 
         name = 'Replica Output'
 
-        strategy = self.get_sharding_strategy(name=name,
-                                              sharding_spec_mapping=sharding_spec_mapping,
-                                              communication_action_mapping=communication_action_mapping)
-        return strategy
+        return self.get_sharding_strategy(
+            name=name,
+            sharding_spec_mapping=sharding_spec_mapping,
+            communication_action_mapping=communication_action_mapping,
+        )
 
     def distributed_strategy(self, mesh_list: List[List[int]] = None) -> List[ShardingStrategy]:
         """
@@ -105,10 +106,11 @@ class OutputGenerator(OutputStrategyGenerator):
 
         name = 'Distributed Output'
 
-        strategy = self.get_sharding_strategy(name=name,
-                                              sharding_spec_mapping=sharding_spec_mapping,
-                                              communication_action_mapping=communication_action_mapping)
-        return strategy
+        return self.get_sharding_strategy(
+            name=name,
+            sharding_spec_mapping=sharding_spec_mapping,
+            communication_action_mapping=communication_action_mapping,
+        )
 
     def collate_strategies(self) -> List[ShardingStrategy]:
         strategy_list = []

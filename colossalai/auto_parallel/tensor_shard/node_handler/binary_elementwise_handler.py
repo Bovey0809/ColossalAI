@@ -80,9 +80,7 @@ class BinaryElementwiseHandler(MetaInfoNodeHandler):
 
     def get_strategy_generator(self) -> List[StrategyGenerator]:
         op_data_mapping = self.get_operation_data_mapping()
-        generators = []
-        generators.append(BinaryElementwiseStrategyGenerator(op_data_mapping, self.device_mesh))
-        return generators
+        return [BinaryElementwiseStrategyGenerator(op_data_mapping, self.device_mesh)]
 
     def post_process(self, strategy: ShardingStrategy) -> Union[ShardingStrategy, List[ShardingStrategy]]:
         # convert bias from its logical sharding spec to its physical sharding spec

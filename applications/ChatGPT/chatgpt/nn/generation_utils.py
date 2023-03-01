@@ -4,15 +4,15 @@ import torch
 
 
 def gpt_prepare_inputs_fn(input_ids: torch.Tensor, past: Optional[torch.Tensor] = None, **kwargs) -> dict:
-    token_type_ids = kwargs.get("token_type_ids", None)
+    token_type_ids = kwargs.get("token_type_ids")
     # only last token for inputs_ids if past is defined in kwargs
     if past:
         input_ids = input_ids[:, -1].unsqueeze(-1)
         if token_type_ids is not None:
             token_type_ids = token_type_ids[:, -1].unsqueeze(-1)
 
-    attention_mask = kwargs.get("attention_mask", None)
-    position_ids = kwargs.get("position_ids", None)
+    attention_mask = kwargs.get("attention_mask")
+    position_ids = kwargs.get("position_ids")
 
     if attention_mask is not None and position_ids is None:
         # create position_ids on the fly for batch generation
@@ -33,11 +33,7 @@ def gpt_prepare_inputs_fn(input_ids: torch.Tensor, past: Optional[torch.Tensor] 
 
 
 def update_model_kwargs_fn(outputs: dict, **model_kwargs) -> dict:
-    if "past_key_values" in outputs:
-        model_kwargs["past"] = outputs["past_key_values"]
-    else:
-        model_kwargs["past"] = None
-
+    model_kwargs["past"] = outputs.get("past_key_values")
     # update token_type_ids with last value
     if "token_type_ids" in model_kwargs:
         token_type_ids = model_kwargs["token_type_ids"]

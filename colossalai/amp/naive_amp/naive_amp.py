@@ -109,15 +109,7 @@ class NaiveAMPModel(nn.Module):
         data parallel ranks so that all the ranks will produce consistent results
         when given the same input
         """
-        buf_list = []
-
-        # find valid buffers
-        for buf in self.model.buffers():
-            if buf is not None:
-                buf_list.append(buf)
-
-        # reduce buffers across data parallel ranks
-        if buf_list:
+        if buf_list := [buf for buf in self.model.buffers() if buf is not None]:
             coalesced_buf = _flatten_dense_tensors(buf_list)
             coalesced_buf.div_(self._world_size)
             dist.all_reduce(coalesced_buf, op=ReduceOp.SUM, group=self._process_group)

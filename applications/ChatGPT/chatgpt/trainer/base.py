@@ -101,15 +101,16 @@ class Trainer(ABC):
         self._on_fit_start()
         for episode in range(num_episodes):
             self._on_episode_start(episode)
-            for timestep in tqdm(range(max_timesteps),
+            for _ in tqdm(range(max_timesteps),
                                  desc=f'Episode [{episode+1}/{num_episodes}]',
                                  disable=not is_rank_0()):
                 time += 1
                 rand_prompts = self._sample_prompts(prompts)
-                if self.tokenizer is not None:
-                    inputs = self.tokenizer(rand_prompts)
-                else:
-                    inputs = rand_prompts
+                inputs = (
+                    self.tokenizer(rand_prompts)
+                    if self.tokenizer is not None
+                    else rand_prompts
+                )
                 self._on_make_experience_start()
                 experience = self._make_experience(inputs)
                 self._on_make_experience_end(experience)

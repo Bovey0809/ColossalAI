@@ -20,6 +20,6 @@ class Linear(LinearBasedBiasFunc):
     def generate(self):
         non_bias_linear_func_proxy = self.create_non_bias_func_proxy(self.args[0], self.args[1])
         kwargs = self.extract_kwargs_from_origin_func()
-        bias_addition_proxy = self.create_bias_addition_proxy(non_bias_linear_func_proxy, kwargs['bias'])
-
-        return bias_addition_proxy
+        return self.create_bias_addition_proxy(
+            non_bias_linear_func_proxy, kwargs['bias']
+        )

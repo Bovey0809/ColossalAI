@@ -36,8 +36,7 @@ def compute_reward(r: Union[torch.Tensor, float],
     if kl_coef <= 0.0:
         return r
     kl = compute_approx_kl(log_probs, log_probs_base, action_mask=action_mask)
-    reward = r - kl_coef * kl
-    return reward
+    return r - kl_coef * kl
 
 
 def log_probs_from_logits(logits: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
@@ -50,8 +49,7 @@ def masked_mean(tensor: torch.Tensor, mask: torch.Tensor, dim: int = 1) -> torch
     tensor = tensor * mask
     tensor = tensor.sum(dim=dim)
     mask_sum = mask.sum(dim=dim)
-    mean = tensor / (mask_sum + 1e-8)
-    return mean
+    return tensor / (mask_sum + 1e-8)
 
 
 def masked_normalize(tensor: torch.Tensor, mask: torch.Tensor, dim: int = 1, eps: float = 1e-8) -> torch.Tensor:
@@ -66,8 +64,7 @@ def normalize(tensor: torch.Tensor, dim: int = 0, eps: float = 1e-8) -> torch.Te
     mean = tensor.mean(dim)
     mean_centered = tensor - mean
     var = (mean_centered**2).mean(dim)
-    norm = mean_centered * var.clamp(min=eps).rsqrt()
-    return norm
+    return mean_centered * var.clamp(min=eps).rsqrt()
 
 
 def convert_to_lora(model: nn.Module,

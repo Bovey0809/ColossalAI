@@ -309,8 +309,7 @@ class FP16Optimizer(Optimizer):
         """Returns the states of the fp16 optimizer as a dict object.
         """
 
-        state_dict = {}
-        state_dict['optimizer'] = self._optimizer.state_dict()
+        state_dict = {'optimizer': self._optimizer.state_dict()}
         if self.grad_scaler:
             state_dict['grad_scaler'] = self.grad_scaler.state_dict()
         state_dict['fp32_master_param_groups'] = self._fp32_master_param_groups
@@ -345,8 +344,7 @@ class FP16Optimizer(Optimizer):
         """
         params = []
         for param_group in self._optimizer.param_groups:
-            for param in param_group['params']:
-                params.append(param)
+            params.extend(iter(param_group['params']))
         return clip_grad_norm_fp32(params, clip_grad)
 
     # Promote state so it can be retrieved or set via

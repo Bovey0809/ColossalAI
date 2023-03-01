@@ -29,10 +29,7 @@ class LiveVariableVector(list):
         """
         Check if a variable has already existed in the current list by name.
         """
-        for var in self:
-            if name == var.name:
-                return True
-        return False
+        return any(name == var.name for var in self)
 
     def get(self, name) -> LiveVariable:
         for var in self:
@@ -145,11 +142,10 @@ class GraphAnalyser:
             # if a LiveStage is covered by another LiveStage, we just keep the larger one.
             replace = False
             for index, prev_stage in enumerate(liveness_list):
-                all_covered = True
-                for ele in prev_stage.unique_live_vars:
-                    if ele not in stage.unique_live_vars:
-                        all_covered = False
-                        break
+                all_covered = all(
+                    ele in stage.unique_live_vars
+                    for ele in prev_stage.unique_live_vars
+                )
                 if all_covered:
                     replace = True
                     break

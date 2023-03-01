@@ -32,7 +32,10 @@ class ConvStrategyGenerator(StrategyGenerator):
         '''
         input_op_data = self.op_data['input']
         assert input_op_data.data.dim() in (
-            3, 4, 5), f'We suppose the dim of input fed into conv op should in range of [3, 5].'
+            3,
+            4,
+            5,
+        ), 'We suppose the dim of input fed into conv op should in range of [3, 5].'
 
     def update_compute_cost(self, strategy: ShardingStrategy):
         '''
@@ -89,14 +92,22 @@ class ConvStrategyGenerator(StrategyGenerator):
         backward_size_mapping.pop("output")
         # compute fwd cost incurred
         # fwd_cost = input + other + bias + output
-        fwd_activation_cost = sum([v for k, v in forward_size_mapping.items() if not self.is_param(k)])
-        fwd_parameter_cost = sum([v for k, v in forward_size_mapping.items() if self.is_param(k)])
+        fwd_activation_cost = sum(
+            v for k, v in forward_size_mapping.items() if not self.is_param(k)
+        )
+        fwd_parameter_cost = sum(
+            v for k, v in forward_size_mapping.items() if self.is_param(k)
+        )
         fwd_mem_cost = MemoryCost(activation=fwd_activation_cost, parameter=fwd_parameter_cost)
 
         # compute bwd cost incurred
         # bwd_cost = input_grad + other_grad + bias_grad
-        bwd_activation_cost = sum([v for k, v in backward_size_mapping.items() if not self.is_param(k)])
-        bwd_parameter_cost = sum([v for k, v in backward_size_mapping.items() if self.is_param(k)])
+        bwd_activation_cost = sum(
+            v for k, v in backward_size_mapping.items() if not self.is_param(k)
+        )
+        bwd_parameter_cost = sum(
+            v for k, v in backward_size_mapping.items() if self.is_param(k)
+        )
         bwd_mem_cost = MemoryCost(activation=bwd_activation_cost, parameter=bwd_parameter_cost)
 
         # compute total cost
@@ -190,7 +201,6 @@ class ConvStrategyGenerator(StrategyGenerator):
 
         sharding_spec_mapping = self.to_sharding_spec_mapping(dim_partition_dict_mapping)
 
-        communication_action_mapping = {}
         if self.is_param("other"):
             other_comm_action = self.get_communication_action(
                 sharding_spec_mapping["other"],
@@ -206,8 +216,7 @@ class ConvStrategyGenerator(StrategyGenerator):
                 comm_type=CommType.BEFORE,
                 arg_index=1)
 
-        communication_action_mapping["other"] = other_comm_action
-
+        communication_action_mapping = {"other": other_comm_action}
         if self.has_bias:
             if self.is_param('bias'):
                 bias_comm_action = self.get_communication_action(
@@ -405,7 +414,7 @@ class ConvStrategyGenerator(StrategyGenerator):
 
     @ignore_sharding_exception
     def non_split(self):
-        name = f'RR = RR x RR'
+        name = 'RR = RR x RR'
 
         dim_partition_dict_mapping = {
             "input": {},
@@ -441,7 +450,6 @@ class ConvStrategyGenerator(StrategyGenerator):
 
         sharding_spec_mapping = self.to_sharding_spec_mapping(dim_partition_dict_mapping)
 
-        communication_action_mapping = {}
         if self.is_param("other"):
             other_comm_action = self.get_communication_action(
                 sharding_spec_mapping["other"],
@@ -456,8 +464,7 @@ class ConvStrategyGenerator(StrategyGenerator):
                 comm_type=CommType.BEFORE,
                 arg_index=1)
 
-        communication_action_mapping["other"] = other_comm_action
-
+        communication_action_mapping = {"other": other_comm_action}
         if self.has_bias:
             if self.is_param("bias"):
                 bias_comm_action = self.get_communication_action(
@@ -544,9 +551,7 @@ class ConvStrategyGenerator(StrategyGenerator):
                                           communication_action_mapping=communication_action_mapping)
 
     def collate_strategies(self) -> List[ShardingStrategy]:
-        strategies = []
-        # SS = SR x RS
-        strategies.append(self.split_input_batch_weight_out_channel(0, 1))
+        strategies = [self.split_input_batch_weight_out_channel(0, 1)]
         strategies.append(self.split_input_batch_weight_out_channel(1, 0))
 
         # SR = SR x RR

@@ -28,10 +28,7 @@ def gather_and_equal(tensor: torch.Tensor) -> bool:
     world_size = dist.get_world_size()
     outputs = [torch.empty_like(tensor) for _ in range(world_size)]
     dist.all_gather(outputs, tensor.contiguous())
-    for t in outputs[1:]:
-        if not torch.equal(outputs[0], t):
-            return False
-    return True
+    return all(torch.equal(outputs[0], t) for t in outputs[1:])
 
 
 def run_test_data(strategy):

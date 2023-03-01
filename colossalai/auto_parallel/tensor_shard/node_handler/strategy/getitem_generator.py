@@ -47,14 +47,22 @@ class GetItemStrategyGenerator(FollowingStrategyGenerator):
         backward_size_mapping.pop("output")
         # compute fwd cost incurred
         # fwd_cost = input + output
-        fwd_activation_cost = sum([v for k, v in forward_size_mapping.items() if not self.is_param(k)])
-        fwd_parameter_cost = sum([v for k, v in forward_size_mapping.items() if self.is_param(k)])
+        fwd_activation_cost = sum(
+            v for k, v in forward_size_mapping.items() if not self.is_param(k)
+        )
+        fwd_parameter_cost = sum(
+            v for k, v in forward_size_mapping.items() if self.is_param(k)
+        )
         fwd_mem_cost = MemoryCost(activation=fwd_activation_cost, parameter=fwd_parameter_cost)
 
         # compute bwd cost incurred
         # bwd_cost = input_grad
-        bwd_activation_cost = sum([v for k, v in backward_size_mapping.items() if not self.is_param(k)])
-        bwd_parameter_cost = sum([v for k, v in backward_size_mapping.items() if self.is_param(k)])
+        bwd_activation_cost = sum(
+            v for k, v in backward_size_mapping.items() if not self.is_param(k)
+        )
+        bwd_parameter_cost = sum(
+            v for k, v in backward_size_mapping.items() if self.is_param(k)
+        )
         bwd_mem_cost = MemoryCost(activation=bwd_activation_cost, parameter=bwd_parameter_cost)
 
         # compute total cost
@@ -92,24 +100,25 @@ class TensorStrategyGenerator(GetItemStrategyGenerator):
                         0,
                     ]
                 else:
-                    getitem_dims = [i for i in range(len(getitem_index))]
+                    getitem_dims = list(range(len(getitem_index)))
                     if isinstance(getitem_index[0], int):
                         int_index = True
                         shift_length = len(getitem_index)
 
-                gather_dims = []
-                for dim in getitem_dims:
-                    if dim in dim_partition_dict_for_input:
-                        gather_dims.append(dim)
-
+                gather_dims = [
+                    dim
+                    for dim in getitem_dims
+                    if dim in dim_partition_dict_for_input
+                ]
                 for dim in gather_dims:
                     dim_partition_dict_for_input.pop(dim)
                 dim_partition_dict_for_output = copy.deepcopy(dim_partition_dict_for_input)
 
                 if int_index:
-                    shift_dim_partition_dict_for_output = {}
-                    for dim, mesh_dim_list in dim_partition_dict_for_output.items():
-                        shift_dim_partition_dict_for_output[dim - shift_length] = mesh_dim_list
+                    shift_dim_partition_dict_for_output = {
+                        dim - shift_length: mesh_dim_list
+                        for dim, mesh_dim_list in dim_partition_dict_for_output.items()
+                    }
                     dim_partition_dict_for_output = shift_dim_partition_dict_for_output
 
                 dim_partition_dict_mapping = {

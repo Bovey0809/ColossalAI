@@ -64,9 +64,10 @@ class AlphaBetaProfiler:
         # Create process group list based on its global rank
         process_group_list = []
         for f_index in range(self.world_size - 1):
-            for b_index in range(f_index + 1, self.world_size):
-                process_group_list.append((self.physical_devices[f_index], self.physical_devices[b_index]))
-
+            process_group_list.extend(
+                (self.physical_devices[f_index], self.physical_devices[b_index])
+                for b_index in range(f_index + 1, self.world_size)
+            )
         # Create process group dict which maps process group to its handler
         process_group_dict = {}
         for process_group in process_group_list:
@@ -140,12 +141,9 @@ class AlphaBetaProfiler:
             latency_list.append(t)
 
         if latency_list[0] is None:
-            latency = None
-        else:
-            median_index = math.floor(self.latency_iters / 2)
-            latency = latency_list[median_index]
-
-        return latency
+            return None
+        median_index = math.floor(self.latency_iters / 2)
+        return latency_list[median_index]
 
     def profile_bandwidth(self, process_group, pg_handler, maxbytes=(1 * GB)):
         '''
@@ -188,11 +186,7 @@ class AlphaBetaProfiler:
                 alpha = self.profile_latency(process_group, pg_handler)
                 bandwidth = self.profile_bandwidth(process_group, pg_handler, maxbytes=max_nbytes)
 
-            if bandwidth is None:
-                beta = None
-            else:
-                beta = 1 / bandwidth
-
+            beta = None if bandwidth is None else 1 / bandwidth
             broadcast_list = [alpha, beta]
             dist.broadcast_object_list(broadcast_list, src=process_group[0])
             alpha_beta_dict[process_group] = tuple(broadcast_list)
@@ -252,7 +246,7 @@ class AlphaBetaProfiler:
                     homogeneous_device_dict[beta].append(process_group)
 
                 match_beta = None
-                for beta_value in homogeneous_device_dict.keys():
+                for beta_value in homogeneous_device_dict:
                     if beta <= beta_value * (1 + self.homogeneous_tolerance) and beta >= beta_value * (
                             1 - self.homogeneous_tolerance):
                         match_beta = beta_value
@@ -323,8 +317,7 @@ class AlphaBetaProfiler:
                 balanced_logical_mesh[row_index].append(self.physical_devices[row_index * column_size + column_index])
 
         homogeneous_device_dict = _detect_homogeneous_device(self.alpha_beta_dict)
-        beta_list = [b for b in homogeneous_device_dict.keys()]
-        beta_list.sort()
+        beta_list = sorted(homogeneous_device_dict.keys())
         beta_list.reverse()
         homogeneous_types = len(beta_list)
         best_logical_mesh = None

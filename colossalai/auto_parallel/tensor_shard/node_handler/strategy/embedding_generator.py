@@ -64,14 +64,22 @@ class EmbeddingStrategyGenerator(StrategyGenerator):
         backward_size_mapping.pop("output")
         # compute fwd cost incurred
         # fwd_cost = input + other + output
-        fwd_activation_cost = sum([v for k, v in forward_size_mapping.items() if not self.is_param(k)])
-        fwd_parameter_cost = sum([v for k, v in forward_size_mapping.items() if self.is_param(k)])
+        fwd_activation_cost = sum(
+            v for k, v in forward_size_mapping.items() if not self.is_param(k)
+        )
+        fwd_parameter_cost = sum(
+            v for k, v in forward_size_mapping.items() if self.is_param(k)
+        )
         fwd_mem_cost = MemoryCost(activation=fwd_activation_cost, parameter=fwd_parameter_cost)
 
         # compute bwd cost incurred
         # bwd_cost = input_grad + other_grad
-        bwd_activation_cost = sum([v for k, v in backward_size_mapping.items() if not self.is_param(k)])
-        bwd_parameter_cost = sum([v for k, v in backward_size_mapping.items() if self.is_param(k)])
+        bwd_activation_cost = sum(
+            v for k, v in backward_size_mapping.items() if not self.is_param(k)
+        )
+        bwd_parameter_cost = sum(
+            v for k, v in backward_size_mapping.items() if self.is_param(k)
+        )
         bwd_mem_cost = MemoryCost(activation=bwd_activation_cost, parameter=bwd_parameter_cost)
 
         # compute total cost
@@ -82,7 +90,7 @@ class EmbeddingStrategyGenerator(StrategyGenerator):
 
     @ignore_sharding_exception
     def non_split(self):
-        name = f'RR = R x RR'
+        name = 'RR = R x RR'
 
         dim_partition_dict_mapping = {
             "input": {},
@@ -112,7 +120,6 @@ class EmbeddingStrategyGenerator(StrategyGenerator):
 
         sharding_spec_mapping = self.to_sharding_spec_mapping(dim_partition_dict_mapping)
 
-        communication_action_mapping = {}
         if self.is_param("other"):
             other_comm_action = self.get_communication_action(
                 sharding_spec_mapping["other"],
@@ -128,8 +135,7 @@ class EmbeddingStrategyGenerator(StrategyGenerator):
                 comm_type=CommType.BEFORE,
                 arg_index=1)
 
-        communication_action_mapping["other"] = other_comm_action
-
+        communication_action_mapping = {"other": other_comm_action}
         return self.get_sharding_strategy(name=name,
                                           sharding_spec_mapping=sharding_spec_mapping,
                                           communication_action_mapping=communication_action_mapping)
@@ -199,9 +205,6 @@ class EmbeddingStrategyGenerator(StrategyGenerator):
 
         sharding_spec_mapping = self.to_sharding_spec_mapping(dim_partition_dict_mapping)
 
-        # set communication action
-        communication_action_mapping = {}
-
         if self.is_param("other"):
             other_comm_action = self.get_communication_action(
                 sharding_spec_mapping["other"],
@@ -217,8 +220,7 @@ class EmbeddingStrategyGenerator(StrategyGenerator):
                 comm_type=CommType.BEFORE,
                 arg_index=1)
 
-        communication_action_mapping["other"] = other_comm_action
-
+        communication_action_mapping = {"other": other_comm_action}
         return self.get_sharding_strategy(name=name,
                                           sharding_spec_mapping=sharding_spec_mapping,
                                           communication_action_mapping=communication_action_mapping)
@@ -284,10 +286,7 @@ class EmbeddingStrategyGenerator(StrategyGenerator):
                                           communication_action_mapping=communication_action_mapping)
 
     def collate_strategies(self) -> List[ShardingStrategy]:
-        strategies = []
-
-        # RR= R x RR
-        strategies.append(self.non_split())
+        strategies = [self.non_split()]
 
         # SR = S x RR
         strategies.append(self.split_input(0))

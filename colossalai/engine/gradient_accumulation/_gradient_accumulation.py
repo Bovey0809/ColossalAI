@@ -57,9 +57,8 @@ class GradAccumOptimizer(ColossalaiOptimizer):
 
         if self.accumulate_step < self.accumulate_size:
             return None
-        else:
-            self.accumulate_step = 0
-            return self.optim.step(*args, **kwargs)
+        self.accumulate_step = 0
+        return self.optim.step(*args, **kwargs)
 
     def clip_grad_norm(self, model: nn.Module, max_norm: float) -> None:
         """
@@ -70,9 +69,7 @@ class GradAccumOptimizer(ColossalaiOptimizer):
             max_norm (float): the max norm for gradient clipping
         """
 
-        if self.accumulate_step < self.accumulate_size:
-            pass
-        else:
+        if self.accumulate_step >= self.accumulate_size:
             self.optim.clip_grad_norm(model, max_norm)
 
     def backward(self, loss: Tensor) -> None:
@@ -143,21 +140,20 @@ class GradAccumDataloader:
         return self
 
     def __next__(self) -> Union[Tensor, Tuple[Tensor]]:
-        if self._cur_step < self.steps_per_epoch:
-            self._cur_step += 1
-            data = next(self._dataiter)
-
-            if self._cur_step == self.steps_per_epoch and self.consume_remain_data:
-                # this is to handle non standard pytorch dataloader
-                # such as dali dataloader
-                while True:
-                    try:
-                        _ = next(self._dataiter)
-                    except StopIteration:
-                        break
-            return data
-        else:
+        if self._cur_step >= self.steps_per_epoch:
             raise StopIteration
+        self._cur_step += 1
+        data = next(self._dataiter)
+
+        if self._cur_step == self.steps_per_epoch and self.consume_remain_data:
+            # this is to handle non standard pytorch dataloader
+            # such as dali dataloader
+            while True:
+                try:
+                    _ = next(self._dataiter)
+                except StopIteration:
+                    break
+        return data
 
 
 class GradAccumLrSchedulerByStep(_LRScheduler):
@@ -201,9 +197,7 @@ class GradAccumLrSchedulerByStep(_LRScheduler):
             **kwargs: keyword arguments for the lr scheduler wrapped.
         """
         self.accumulate_step += 1
-        if self.accumulate_step < self.accumulate_size:
-            pass
-        else:
+        if self.accumulate_step >= self.accumulate_size:
             self.accumulate_step = 0
             self.lr_scheduler.step(*args, **kwargs)
 
@@ -283,8 +277,6 @@ class GradAccumGradientHandler:
         """
 
         self.accumulate_step += 1
-        if self.accumulate_step < self.accumulate_size:
-            pass
-        else:
+        if self.accumulate_step >= self.accumulate_size:
             self.accumulate_step = 0
             self.grad_handler.handle_gradient()

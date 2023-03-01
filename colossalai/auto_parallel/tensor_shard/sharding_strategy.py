@@ -167,7 +167,7 @@ class ShardingStrategy:
     @property
     def input_sharding_specs(self) -> Dict[OperationData, ShardingSpec]:
         specs = {}
-        specs.update(self._get_sharding_spec(OperationDataType.ARG))
+        specs |= self._get_sharding_spec(OperationDataType.ARG)
         specs.update(self._get_sharding_spec(OperationDataType.PARAM))
         return specs
 
@@ -184,8 +184,11 @@ class ShardingStrategy:
         return self._get_sharding_spec(OperationDataType.OUTPUT)
 
     def _get_sharding_spec(self, operation_data_type: OperationDataType):
-        specs = {k: v for k, v in self.sharding_specs.items() if k.type == operation_data_type}
-        return specs
+        return {
+            k: v
+            for k, v in self.sharding_specs.items()
+            if k.type == operation_data_type
+        }
 
     def get_op_data_by_name(self, name: str):
         for op_data in self.sharding_specs.keys():
@@ -267,7 +270,7 @@ class StrategiesVector(list):
             if self.node.target in RESHAPE_FUNC_OP:
                 merge_label = True
 
-        if self.node.op == 'call_method':
+        elif self.node.op == 'call_method':
             # we could merge reshape op, because their computation costs are negligible.
             method = getattr(self.node.args[0]._meta_data.__class__, self.node.target)
             if method in RESHAPE_METHOD_OP:

@@ -123,12 +123,6 @@ def linear_meta_info(*args, **kwargs) -> Tuple[TrainCycleItem, TrainCycleItem, L
                                      temp=0,
                                      buffer=0)
 
-        # total cost is to sum the forward and backward cost
-        total_cost = MemoryCost(activation=fwd_memory_cost.activation + bwd_memory_cost.activation,
-                                parameter=fwd_memory_cost.parameter + bwd_memory_cost.parameter)
-
-        memory_cost = TrainCycleItem(fwd=fwd_memory_cost, bwd=bwd_memory_cost, total=total_cost)
-
     else:
         # calculate cost without bias
         # the fwd op with compute cost is mm
@@ -159,11 +153,11 @@ def linear_meta_info(*args, **kwargs) -> Tuple[TrainCycleItem, TrainCycleItem, L
                                      temp=0,
                                      buffer=0)
 
-        # total cost is to sum the forward and backward cost
-        total_cost = MemoryCost(activation=fwd_memory_cost.activation + bwd_memory_cost.activation,
-                                parameter=fwd_memory_cost.parameter + bwd_memory_cost.parameter)
+    # total cost is to sum the forward and backward cost
+    total_cost = MemoryCost(activation=fwd_memory_cost.activation + bwd_memory_cost.activation,
+                            parameter=fwd_memory_cost.parameter + bwd_memory_cost.parameter)
 
-        memory_cost = TrainCycleItem(fwd=fwd_memory_cost, bwd=bwd_memory_cost, total=total_cost)
+    memory_cost = TrainCycleItem(fwd=fwd_memory_cost, bwd=bwd_memory_cost, total=total_cost)
 
     # store fwd_in, fwd_buffer, fwd_out
     fwd_in = [torch.zeros_like(input_tensor, device='meta')]

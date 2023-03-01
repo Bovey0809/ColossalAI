@@ -14,9 +14,7 @@ class GetattrHandler(NodeHandler):
 
     def get_strategy_generator(self) -> List[StrategyGenerator]:
         op_data_mapping = self.get_operation_data_mapping()
-        generators = []
-        generators.append(GetattrGenerator(op_data_mapping, self.device_mesh))
-        return generators
+        return [GetattrGenerator(op_data_mapping, self.device_mesh)]
 
     def get_operation_data_mapping(self) -> Dict[str, OperationData]:
         # use transposed shape for strategies
@@ -29,6 +27,4 @@ class GetattrHandler(NodeHandler):
         # issue related to the node._meta_data type.
         physical_output = OperationData(name=str(self.node), type=OperationDataType.OUTPUT, data=self.node._meta_data)
 
-        mapping = {"output": physical_output}
-
-        return mapping
+        return {"output": physical_output}

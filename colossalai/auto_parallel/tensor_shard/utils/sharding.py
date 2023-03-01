@@ -58,11 +58,7 @@ def update_partition_dim(sharding_spec: ShardingSpec,
         physical_shape (torch.Size): the physical shape for the tensor
     """
 
-    if inplace:
-        current_sharding_spec = sharding_spec
-    else:
-        current_sharding_spec = deepcopy(sharding_spec)
-
+    current_sharding_spec = sharding_spec if inplace else deepcopy(sharding_spec)
     old_dim_partition_dict = current_sharding_spec.dim_partition_dict
     new_dim_partition_dict = {}
 
@@ -91,8 +87,7 @@ def enumerate_all_possible_2d_sharding(mesh_dim_0, mesh_dim_1, dim_size):
         for j in range(i + 1, dim_size):
             dim_partition_dict_0 = {i: [mesh_dim_0], j: [mesh_dim_1]}
             dim_partition_dict_1 = {i: [mesh_dim_1], j: [mesh_dim_0]}
-            dim_partition_list.append(dim_partition_dict_0)
-            dim_partition_list.append(dim_partition_dict_1)
+            dim_partition_list.extend((dim_partition_dict_0, dim_partition_dict_1))
     for i in range(dim_size):
         dim_partition_dict_flatten = {i: [mesh_dim_0, mesh_dim_1]}
         dim_partition_list.append(dim_partition_dict_flatten)

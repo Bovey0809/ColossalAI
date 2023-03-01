@@ -120,9 +120,7 @@ def solve_solution(gm: ColoGraphModule, strategy_constructor: StrategiesConstruc
     cost_graph.simplify_graph()
     solver = Solver(gm.graph, strategy_constructor, cost_graph, memory_budget=memory_budget)
     ret = solver.call_solver_serialized_args()
-    solution = list(ret[0])
-
-    return solution
+    return list(ret[0])
 
 
 def transform_to_sharded_model(gm: ColoGraphModule,
@@ -172,7 +170,7 @@ def initialize_device_mesh(world_size: int = -1,
         world_size = dist.get_world_size()
 
     if physical_devices is None:
-        physical_devices = [i for i in range(world_size)]
+        physical_devices = list(range(world_size))
     physical_mesh = torch.tensor(physical_devices)
 
     if alpha_beta_dict is None:
@@ -197,12 +195,13 @@ def initialize_device_mesh(world_size: int = -1,
         # extract alpha and beta values for the chosen logical mesh shape
         mesh_alpha, mesh_beta = extract_alpha_beta_for_device_mesh(alpha_beta_dict, logical_mesh_id)
 
-    device_mesh = DeviceMesh(physical_mesh_id=physical_mesh,
-                             logical_mesh_id=logical_mesh_id,
-                             mesh_alpha=mesh_alpha,
-                             mesh_beta=mesh_beta,
-                             init_process_group=True)
-    return device_mesh
+    return DeviceMesh(
+        physical_mesh_id=physical_mesh,
+        logical_mesh_id=logical_mesh_id,
+        mesh_alpha=mesh_alpha,
+        mesh_beta=mesh_beta,
+        init_process_group=True,
+    )
 
 
 def initialize_model(model: nn.Module,
@@ -264,14 +263,14 @@ def initialize_model(model: nn.Module,
     gm, sharding_spec_dicts = transform_to_sharded_model(gm, solution, device_mesh, strategies_constructor, overlap)
     model_to_return = ModuleWrapper(gm, *sharding_spec_dicts)
 
-    if return_solution:
-        solution_to_return = []
-        nodes = [strategies_vector.node for strategies_vector in strategies_constructor.leaf_strategies]
-        for index, node in enumerate(nodes):
-            solution_to_return.append(f'{node.name} {node.strategies_vector[solution[index]].name}')
-        return model_to_return, solution_to_return
-    else:
+    if not return_solution:
         return model_to_return
+    nodes = [strategies_vector.node for strategies_vector in strategies_constructor.leaf_strategies]
+    solution_to_return = [
+        f'{node.name} {node.strategies_vector[solution[index]].name}'
+        for index, node in enumerate(nodes)
+    ]
+    return model_to_return, solution_to_return
 
 
 def autoparallelize(model: nn.Module,

@@ -101,5 +101,4 @@ class PairWiseLoss(nn.Module):
     def forward(self, chosen_reward: torch.Tensor, reject_reward: torch.Tensor) -> torch.Tensor:
         probs = torch.sigmoid(chosen_reward - reject_reward)
         log_probs = torch.log(probs)
-        loss = -log_probs.mean()
-        return loss
+        return -log_probs.mean()

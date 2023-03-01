@@ -44,10 +44,7 @@ def all_gather(tensor: Tensor, dim: int, parallel_mode: ParallelMode, async_op: 
         group = gpc.get_cpu_group(parallel_mode) if tensor.device.type == "cpu" else gpc.get_group(parallel_mode)
         work = _all_gather_func(tensor_out, tensor_in, group=group, async_op=async_op)
         out = tensor_out if dim == 0 else tensor_out.transpose(0, dim)
-    if async_op:
-        return out, work
-    else:
-        return out
+    return (out, work) if async_op else out
 
 
 def reduce_scatter(tensor: Tensor,
@@ -87,10 +84,7 @@ def reduce_scatter(tensor: Tensor,
         group = gpc.get_cpu_group(parallel_mode) if tensor.device.type == "cpu" else gpc.get_group(parallel_mode)
         work = _reduce_scatter_func(tensor_out, tensor_in, op=op, group=group, async_op=async_op)
         out = tensor_out if dim == 0 else tensor_out.transpose(0, dim)
-    if async_op:
-        return out, work
-    else:
-        return out
+    return (out, work) if async_op else out
 
 
 def all_reduce(tensor: Tensor,
@@ -124,10 +118,7 @@ def all_reduce(tensor: Tensor,
         out = tensor.contiguous()
         group = gpc.get_cpu_group(parallel_mode) if tensor.device.type == "cpu" else gpc.get_group(parallel_mode)
         work = dist.all_reduce(out, op=op, group=group, async_op=async_op)
-    if async_op:
-        return out, work
-    else:
-        return out
+    return (out, work) if async_op else out
 
 
 def broadcast(tensor: Tensor, src: int, parallel_mode: ParallelMode, async_op: bool = False):
@@ -156,10 +147,7 @@ def broadcast(tensor: Tensor, src: int, parallel_mode: ParallelMode, async_op: b
         out = tensor.contiguous()
         group = gpc.get_cpu_group(parallel_mode) if tensor.device.type == "cpu" else gpc.get_group(parallel_mode)
         work = dist.broadcast(out, src=src, group=group, async_op=async_op)
-    if async_op:
-        return out, work
-    else:
-        return out
+    return (out, work) if async_op else out
 
 
 def reduce(tensor: Tensor, dst: int, parallel_mode: ParallelMode, op: ReduceOp = ReduceOp.SUM, async_op: bool = False):
@@ -188,10 +176,7 @@ def reduce(tensor: Tensor, dst: int, parallel_mode: ParallelMode, op: ReduceOp =
         out = tensor.contiguous()
         group = gpc.get_cpu_group(parallel_mode) if tensor.device.type == "cpu" else gpc.get_group(parallel_mode)
         work = dist.reduce(out, dst=dst, op=op, group=group, async_op=async_op)
-    if async_op:
-        return out, work
-    else:
-        return out
+    return (out, work) if async_op else out
 
 
 def scatter_object_list(scatter_object_output_list, scatter_object_input_list, src=0, group=None) -> None:

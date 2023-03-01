@@ -117,7 +117,7 @@ class MultiNodeRunner:
             msg_from_node (dict): a dictionry which contains messages from each node
         """
 
-        msg_from_node = dict()
-        for hostname, conn in self.master_recv_conns.items():
-            msg_from_node[hostname] = conn.recv()
-        return msg_from_node
+        return {
+            hostname: conn.recv()
+            for hostname, conn in self.master_recv_conns.items()
+        }

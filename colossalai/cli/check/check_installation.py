@@ -11,10 +11,7 @@ def to_click_output(val):
     # installation check output to understandable symbols for readability
     VAL_TO_SYMBOL = {True: u'\u2713', False: 'x', None: 'N/A'}
 
-    if val in VAL_TO_SYMBOL:
-        return VAL_TO_SYMBOL[val]
-    else:
-        return val
+    return VAL_TO_SYMBOL.get(val, val)
 
 
 def check_installation():
@@ -35,11 +32,11 @@ def check_installation():
 
     # if cuda_version is None, that means either
     # CUDA_HOME is not found, thus cannot compare the version compatibility
-    if not cuda_version:
-        sys_torch_cuda_compatibility = None
-    else:
-        sys_torch_cuda_compatibility = _is_compatible([cuda_version, torch_cuda_version])
-
+    sys_torch_cuda_compatibility = (
+        _is_compatible([cuda_version, torch_cuda_version])
+        if cuda_version
+        else None
+    )
     # if cuda_version or cuda_version_required is None, that means either
     # CUDA_HOME is not found or AOT compilation is not enabled
     # thus, there is no need to compare the version compatibility at all
@@ -55,18 +52,22 @@ def check_installation():
     else:
         torch_compatibility = _is_compatible([torch_version, prebuilt_torch_version_required])
 
-    click.echo(f'#### Installation Report ####')
+    click.echo('#### Installation Report ####')
     click.echo(f'\n------------ Environment ------------')
     click.echo(f"Colossal-AI version: {to_click_output(colossalai_verison)}")
     click.echo(f"PyTorch version: {to_click_output(torch_version)}")
     click.echo(f"System CUDA version: {to_click_output(cuda_version)}")
     click.echo(f"CUDA version required by PyTorch: {to_click_output(torch_cuda_version)}")
     click.echo("")
-    click.echo(f"Note:")
-    click.echo(f"1. The table above checks the versions of the libraries/tools in the current environment")
-    click.echo(f"2. If the System CUDA version is N/A, you can set the CUDA_HOME environment variable to locate it")
+    click.echo("Note:")
     click.echo(
-        f"3. If the CUDA version required by PyTorch is N/A, you probably did not install a CUDA-compatible PyTorch. This value is give by torch.version.cuda and you can go to https://pytorch.org/get-started/locally/ to download the correct version."
+        "1. The table above checks the versions of the libraries/tools in the current environment"
+    )
+    click.echo(
+        "2. If the System CUDA version is N/A, you can set the CUDA_HOME environment variable to locate it"
+    )
+    click.echo(
+        "3. If the CUDA version required by PyTorch is N/A, you probably did not install a CUDA-compatible PyTorch. This value is give by torch.version.cuda and you can go to https://pytorch.org/get-started/locally/ to download the correct version."
     )
 
     click.echo(f'\n------------ CUDA Extensions AOT Compilation ------------')
@@ -74,27 +75,31 @@ def check_installation():
     click.echo(f"PyTorch version used for AOT compilation: {to_click_output(prebuilt_torch_version_required)}")
     click.echo(f"CUDA version used for AOT compilation: {to_click_output(prebuilt_cuda_version_required)}")
     click.echo("")
-    click.echo(f"Note:")
+    click.echo("Note:")
     click.echo(
-        f"1. AOT (ahead-of-time) compilation of the CUDA kernels occurs during installation when the environment varialbe CUDA_EXT=1 is set"
+        "1. AOT (ahead-of-time) compilation of the CUDA kernels occurs during installation when the environment varialbe CUDA_EXT=1 is set"
     )
-    click.echo(f"2. If AOT compilation is not enabled, stay calm as the CUDA kernels can still be built during runtime")
+    click.echo(
+        "2. If AOT compilation is not enabled, stay calm as the CUDA kernels can still be built during runtime"
+    )
 
     click.echo(f"\n------------ Compatibility ------------")
     click.echo(f'PyTorch version match: {to_click_output(torch_compatibility)}')
     click.echo(f"System and PyTorch CUDA version match: {to_click_output(sys_torch_cuda_compatibility)}")
     click.echo(f"System and Colossal-AI CUDA version match: {to_click_output(sys_colossalai_cuda_compatibility)}")
     click.echo(f"")
-    click.echo(f"Note:")
-    click.echo(f"1. The table above checks the version compatibility of the libraries/tools in the current environment")
+    click.echo("Note:")
     click.echo(
-        f"   - PyTorch version mistach: whether the PyTorch version in the current environment is compatible with the PyTorch version used for AOT compilation"
+        "1. The table above checks the version compatibility of the libraries/tools in the current environment"
     )
     click.echo(
-        f"   - System and PyTorch CUDA version match: whether the CUDA version in the current environment is compatible with the CUDA version required by PyTorch"
+        "   - PyTorch version mistach: whether the PyTorch version in the current environment is compatible with the PyTorch version used for AOT compilation"
     )
     click.echo(
-        f"   - System and Colossal-AI CUDA version match: whether the CUDA version in the current environment is compatible with the CUDA version used for AOT compilation"
+        "   - System and PyTorch CUDA version match: whether the CUDA version in the current environment is compatible with the CUDA version required by PyTorch"
+    )
+    click.echo(
+        "   - System and Colossal-AI CUDA version match: whether the CUDA version in the current environment is compatible with the CUDA version used for AOT compilation"
     )
 
 
@@ -202,7 +207,9 @@ def _check_cuda_version():
         cuda_version = CUDA_HOME
     else:
         try:
-            raw_output = subprocess.check_output([CUDA_HOME + "/bin/nvcc", "-V"], universal_newlines=True)
+            raw_output = subprocess.check_output(
+                [f"{CUDA_HOME}/bin/nvcc", "-V"], universal_newlines=True
+            )
             output = raw_output.split()
             release_idx = output.index("release") + 1
             release = output[release_idx].split(".")

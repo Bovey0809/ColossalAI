@@ -31,8 +31,7 @@ class Addbmm(LinearBasedBiasFunc):
         node_args = (input_proxy, other_proxy)
         # torch.bmm does not have any kwargs
         node_kwargs = {}
-        non_bias_func_proxy = self.tracer.create_proxy(node_kind, node_target, node_args, node_kwargs)
-        return non_bias_func_proxy
+        return self.tracer.create_proxy(node_kind, node_target, node_args, node_kwargs)
 
     def insert_sum_node(self, input_proxy, sum_dims=0):
         '''
@@ -42,8 +41,7 @@ class Addbmm(LinearBasedBiasFunc):
         node_target = torch.sum
         node_args = (input_proxy, sum_dims)
         node_kwargs = {}
-        sum_proxy = self.tracer.create_proxy(node_kind, node_target, node_args, node_kwargs)
-        return sum_proxy
+        return self.tracer.create_proxy(node_kind, node_target, node_args, node_kwargs)
 
     def generate(self):
         # The formula for addbmm is output = beta * input + alpha * (torch.bmm(b1, b2))
@@ -69,7 +67,4 @@ class Addbmm(LinearBasedBiasFunc):
         else:
             alpha_proxy = sum_proxy
 
-        # doing the addition(temp_4 = temp_2 + temp_3)
-        bias_addition_proxy = self.create_bias_addition_proxy(alpha_proxy, beta_proxy)
-
-        return bias_addition_proxy
+        return self.create_bias_addition_proxy(alpha_proxy, beta_proxy)

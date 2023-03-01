@@ -19,14 +19,10 @@ class TensorConstructorHandler(NodeHandler):
 
     def get_strategy_generator(self) -> List[StrategyGenerator]:
         op_data_mapping = self.get_operation_data_mapping()
-        generators = []
-        generators.append(TensorConstructorGenerator(op_data_mapping, self.device_mesh))
-        return generators
+        return [TensorConstructorGenerator(op_data_mapping, self.device_mesh)]
 
     def get_operation_data_mapping(self) -> Dict[str, OperationData]:
         output_data = self.node._meta_data
         physical_output_operand = OperationData(name=str(self.node), type=OperationDataType.OUTPUT, data=output_data)
 
-        mapping = {"output": physical_output_operand}
-
-        return mapping
+        return {"output": physical_output_operand}

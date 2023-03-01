@@ -24,22 +24,29 @@ def get_tensor_shape():
     if not gpc.is_initialized(ParallelMode.PIPELINE):
         return None
 
-    if hasattr(gpc.config, 'SEQ_LENGTH') and hasattr(gpc.config, 'GLOBAL_BATCH_SIZE') and hasattr(
-            gpc.config, 'GLOBAL_BATCH_SIZE') and hasattr(gpc.config, 'HIDDEN_SIZE'):
-        if gpc.is_initialized(ParallelMode.DATA):
-            dp_size = gpc.get_world_size(ParallelMode.DATA)
-        else:
-            dp_size = 1
-        if gpc.is_initialized(ParallelMode.SEQUENCE):
-            seq_size = gpc.get_world_size(ParallelMode.SEQUENCE)
-        else:
-            seq_size = 1
-
-        tensor_shape = (gpc.config.SEQ_LENGTH // seq_size,
-                        gpc.config.GLOBAL_BATCH_SIZE // dp_size // gpc.config.NUM_MICRO_BATCHES, gpc.config.HIDDEN_SIZE)
-        return tensor_shape
-    else:
+    if (
+        not hasattr(gpc.config, 'SEQ_LENGTH')
+        or not hasattr(gpc.config, 'GLOBAL_BATCH_SIZE')
+        or not hasattr(gpc.config, 'HIDDEN_SIZE')
+    ):
         return None
+    dp_size = (
+        gpc.get_world_size(ParallelMode.DATA)
+        if gpc.is_initialized(ParallelMode.DATA)
+        else 1
+    )
+    if gpc.is_initialized(ParallelMode.SEQUENCE):
+        seq_size = gpc.get_world_size(ParallelMode.SEQUENCE)
+    else:
+        seq_size = 1
+
+    return (
+        gpc.config.SEQ_LENGTH // seq_size,
+        gpc.config.GLOBAL_BATCH_SIZE
+        // dp_size
+        // gpc.config.NUM_MICRO_BATCHES,
+        gpc.config.HIDDEN_SIZE,
+    )
 
 
 def pack_return_tensors(return_tensors):
@@ -49,7 +56,7 @@ def pack_return_tensors(return_tensors):
     elif isinstance(output[0], (list, tuple)):
         output = tuple(torch.cat(tensors, dim=0) for tensors in zip(*output))
     else:
-        raise TypeError(f'Output of model must be tensor or list/tuple of tensors')
+        raise TypeError('Output of model must be tensor or list/tuple of tensors')
     if isinstance(label[0], torch.Tensor):
         label = torch.cat(label, dim=0)
     else:
@@ -98,9 +105,9 @@ class PipelineSchedule(BaseSchedule):
         if data_process_func:
             sig = inspect.signature(data_process_func)
             assert len(sig.parameters) == 2, \
-                'The data_process_func only takes in two parameters for NonPipelineSchedule, ' \
-                'which is the tensors passed by the previous pipeline stage and the dataloader output from this stage, ' \
-                'i.e. data_process_func(stage_output, dataloader_output).'
+                    'The data_process_func only takes in two parameters for NonPipelineSchedule, ' \
+                    'which is the tensors passed by the previous pipeline stage and the dataloader output from this stage, ' \
+                    'i.e. data_process_func(stage_output, dataloader_output).'
 
         super().__init__(data_process_func=data_process_func)
 
@@ -110,9 +117,7 @@ class PipelineSchedule(BaseSchedule):
         self.dtype = torch.float
         assert not isinstance(tensor_shape,
                               int), "tensor_shape type should be one of Union[torch.Size, List[int], Tuple[int]]."
-        if tensor_shape is None:
-            self.tensor_shape = tensor_shape
-        elif isinstance(tensor_shape, torch.Size):
+        if tensor_shape is None or isinstance(tensor_shape, torch.Size):
             self.tensor_shape = tensor_shape
         else:
             self.tensor_shape = torch.Size(tensor_shape)
@@ -140,12 +145,13 @@ class PipelineSchedule(BaseSchedule):
             data_dict = {}
             for element in data:
                 if isinstance(element, dict):
-                    data_dict.update({k: v[offset:offset + self.microbatch_size] for k, v in element.items()})
+                    data_dict |= {
+                        k: v[offset : offset + self.microbatch_size]
+                        for k, v in element.items()
+                    }
                 elif data_dict:
                     data_dict['label'] = element[offset:offset + self.microbatch_size]
-            if data_dict:
-                return data_dict
-            return [val[offset:offset + self.microbatch_size] for val in data]
+            return data_dict or [val[offset:offset + self.microbatch_size] for val in data]
         elif isinstance(data, dict):
             return {k: v[offset:offset + self.microbatch_size] for k, v in data.items()}
         else:
@@ -173,61 +179,54 @@ class PipelineSchedule(BaseSchedule):
 
     @staticmethod
     def _call_engine(model, data):
-        if data is not None:
-            if isinstance(data, torch.Tensor):
-                return model(data)
-            elif isinstance(data, (list, tuple)):
-                return model(*data)
-            elif isinstance(data, dict):
-                stage_output = None
-                if 'stage_output' in data:
-                    stage_output = data.pop('stage_output')
-                if stage_output is None:
-                    return model(**data)
-                elif isinstance(stage_output, torch.Tensor):
-                    return model(stage_output, **data)
-                elif isinstance(stage_output, (tuple, list)):
-                    return model(*stage_output, **data)
-                else:
-                    raise TypeError(
-                        f"Expected stage_output to be of type torch.Tensor, list, or tuple, but got {type(stage_output)}"
-                    )
+        if data is None:
+            return
+        if isinstance(data, torch.Tensor):
+            return model(data)
+        elif isinstance(data, (list, tuple)):
+            return model(*data)
+        elif isinstance(data, dict):
+            stage_output = data.pop('stage_output') if 'stage_output' in data else None
+            if stage_output is None:
+                return model(**data)
+            elif isinstance(stage_output, torch.Tensor):
+                return model(stage_output, **data)
+            elif isinstance(stage_output, (tuple, list)):
+                return model(*stage_output, **data)
             else:
-                raise TypeError(f"Expected data to be of type torch.Tensor, list, tuple, or dict, but got {type(data)}")
+                raise TypeError(
+                    f"Expected stage_output to be of type torch.Tensor, list, or tuple, but got {type(stage_output)}"
+                )
+        else:
+            raise TypeError(f"Expected data to be of type torch.Tensor, list, tuple, or dict, but got {type(data)}")
 
     def _get_actual_forward_func(self, module):
         if isinstance(module, NaiveAMPModel):
-            sig = inspect.signature(module.model.forward)
+            return inspect.signature(module.model.forward)
         elif hasattr(module, 'colo_attr'):
-            sig = inspect.signature(module.module.forward)
+            return inspect.signature(module.module.forward)
         else:
-            sig = inspect.signature(module.forward)
-        return sig
+            return inspect.signature(module.forward)
 
     def _get_data_label_for_current_step(self, stage_output, micro_batch_data, criterion, model):
         if self.data_process_func:
             # use customized function to get data and label
             data, label = self.data_process_func(stage_output, micro_batch_data)
-        else:
-            if isinstance(micro_batch_data, (tuple, list)):
-                if gpc.is_first_rank(ParallelMode.PIPELINE):
-                    # for the first stage, we use the data from the
-                    # dataloader output by default
-                    data, label = micro_batch_data
-                else:
-                    # for non-first stage, we use the output passed
-                    # by the previous as the model input
-                    data = stage_output
-                    _, label = micro_batch_data
-            elif isinstance(micro_batch_data, dict):
-                data = {}
-                data['stage_output'] = stage_output
-                if 'label' in micro_batch_data:
-                    label = micro_batch_data.pop('label')
-                else:
-                    label = None
-                load_data = micro_batch_data
-                data.update(load_data)
+        elif isinstance(micro_batch_data, (tuple, list)):
+            if gpc.is_first_rank(ParallelMode.PIPELINE):
+                # for the first stage, we use the data from the
+                # dataloader output by default
+                data, label = micro_batch_data
+            else:
+                # for non-first stage, we use the output passed
+                # by the previous as the model input
+                data = stage_output
+                _, label = micro_batch_data
+        elif isinstance(micro_batch_data, dict):
+            data = {'stage_output': stage_output}
+            label = micro_batch_data.pop('label') if 'label' in micro_batch_data else None
+            load_data = micro_batch_data
+            data |= load_data
         return data, label
 
     def _forward_step(self, engine, input_obj, return_tensors, return_output_label=True, accum_loss=None):
@@ -297,17 +296,14 @@ class PipelineSchedule(BaseSchedule):
         else:
             engine.backward_by_grad(output_obj, output_obj_grad)
 
-        # Collect the grad of the input_obj.
-        input_obj_grad = None
         if input_obj is not None:
-            if isinstance(input_obj, torch.Tensor):
-                input_obj_grad = input_obj.grad
-            else:
-                input_obj_grad = []
-                for in_tensor in input_obj:
-                    input_obj_grad.append(in_tensor.grad)
-
-        return input_obj_grad
+            return (
+                input_obj.grad
+                if isinstance(input_obj, torch.Tensor)
+                else [in_tensor.grad for in_tensor in input_obj]
+            )
+        else:
+            return None
 
     def forward_backward_step(self, engine, data_iter, forward_only=False, return_loss=True, return_output_label=True):
         """Runs non-interleaved 1F1B schedule, with communication between pipeline stages.
@@ -326,10 +322,10 @@ class PipelineSchedule(BaseSchedule):
         """
 
         assert forward_only or return_loss, \
-            'The argument \'return_loss\' has to be True when \'forward_only\' is False, but got False.'
+                'The argument \'return_loss\' has to be True when \'forward_only\' is False, but got False.'
         self.load_batch(data_iter)
         num_warmup_microbatches = \
-            (gpc.get_world_size(ParallelMode.PIPELINE)
+                (gpc.get_world_size(ParallelMode.PIPELINE)
              - gpc.get_local_rank(ParallelMode.PIPELINE) - 1)
         num_warmup_microbatches = min(num_warmup_microbatches, self.num_microbatches)
         num_microbatches_remaining = self.num_microbatches - num_warmup_microbatches
@@ -351,7 +347,7 @@ class PipelineSchedule(BaseSchedule):
         fs_checker = self.tensor_shape is None
 
         # Run warmup forward passes.
-        for i in range(num_warmup_microbatches):
+        for _ in range(num_warmup_microbatches):
             if not gpc.is_first_rank(ParallelMode.PIPELINE):
                 ft_shapes = comm.recv_obj_meta(ft_shapes)
             input_obj = comm.recv_forward(ft_shapes,
@@ -366,9 +362,7 @@ class PipelineSchedule(BaseSchedule):
                 if isinstance(output_obj, torch.Tensor):
                     bt_shapes = output_obj.shape
                 else:
-                    bt_shapes = []
-                    for out_tensor in output_obj:
-                        bt_shapes.append(out_tensor.shape)
+                    bt_shapes = [out_tensor.shape for out_tensor in output_obj]
                 fs_checker = comm.send_obj_meta(output_obj, fs_checker)
             comm.send_forward(output_obj, scatter_gather_tensors=self.scatter_gather_tensors)
 
@@ -431,7 +425,7 @@ class PipelineSchedule(BaseSchedule):
 
         # Run cooldown backward passes.
         if not forward_only:
-            for i in range(num_warmup_microbatches):
+            for _ in range(num_warmup_microbatches):
                 input_obj = input_objs.pop(0)
                 output_obj = output_objs.pop(0)
 
@@ -443,11 +437,10 @@ class PipelineSchedule(BaseSchedule):
 
                 comm.send_backward(input_obj_grad, scatter_gather_tensors=self.scatter_gather_tensors)
 
-        if len(return_tensors) > 0:
-            output, label = pack_return_tensors(return_tensors)
-            return output, label, accum_loss
-        else:
+        if not return_tensors:
             return None, None, accum_loss
+        output, label = pack_return_tensors(return_tensors)
+        return output, label, accum_loss
 
 
 class InterleavedPipelineSchedule(PipelineSchedule):
@@ -567,7 +560,7 @@ class InterleavedPipelineSchedule(PipelineSchedule):
                 The loss would be returned only in the last stage.
         """
         assert forward_only or return_loss, \
-            'The argument \'return_loss\' has to be True when \'forward_only\' is False, but got False.'
+                'The argument \'return_loss\' has to be True when \'forward_only\' is False, but got False.'
         self.load_batch(data_iter)
         model = engine.model
         input_objs = [[] for _ in range(len(model))]
@@ -606,11 +599,11 @@ class InterleavedPipelineSchedule(PipelineSchedule):
                 all_warmup_microbatches = True
             else:
                 num_warmup_microbatches = \
-                    (pipeline_parallel_size - pipeline_parallel_rank - 1) * 2
+                        (pipeline_parallel_size - pipeline_parallel_rank - 1) * 2
                 num_warmup_microbatches += (num_model_chunks - 1) * pipeline_parallel_size
                 num_warmup_microbatches = min(num_warmup_microbatches, num_microbatches)
         num_microbatches_remaining = \
-            num_microbatches - num_warmup_microbatches
+                num_microbatches - num_warmup_microbatches
 
         def get_model_chunk_id(microbatch_id, forward):
             """Helper method to get the model chunk ID given the iteration number."""
@@ -628,10 +621,10 @@ class InterleavedPipelineSchedule(PipelineSchedule):
             gpc.set_virtual_pipeline_parallel_rank(model_chunk_id)
 
             # forward step
-            if gpc.is_pipeline_first_stage():
-                if len(input_objs[model_chunk_id]) == \
-                        len(output_objs[model_chunk_id]):
-                    input_objs[model_chunk_id].append(None)
+            if gpc.is_pipeline_first_stage() and len(
+                input_objs[model_chunk_id]
+            ) == len(output_objs[model_chunk_id]):
+                input_objs[model_chunk_id].append(None)
             input_obj = input_objs[model_chunk_id][-1]
             output_obj = self._forward_step(engine,
                                             model_chunk_id,
@@ -655,9 +648,11 @@ class InterleavedPipelineSchedule(PipelineSchedule):
             model_chunk_id = get_model_chunk_id(microbatch_id, forward=False)
             gpc.set_virtual_pipeline_parallel_rank(model_chunk_id)
 
-            if gpc.is_pipeline_last_stage():
-                if len(output_obj_grads[model_chunk_id]) == 0:
-                    output_obj_grads[model_chunk_id].append(None)
+            if (
+                gpc.is_pipeline_last_stage()
+                and len(output_obj_grads[model_chunk_id]) == 0
+            ):
+                output_obj_grads[model_chunk_id].append(None)
             input_obj = input_objs[model_chunk_id].pop(0)
             output_obj = output_objs[model_chunk_id].pop(0)
             output_obj_grad = output_obj_grads[model_chunk_id].pop(0)
@@ -688,9 +683,11 @@ class InterleavedPipelineSchedule(PipelineSchedule):
             # Determine if tensor should be received from previous stage.
             next_forward_model_chunk_id = get_model_chunk_id(k + 1, forward=True)
             recv_prev = True
-            if gpc.is_pipeline_first_stage(ignore_virtual=True):
-                if next_forward_model_chunk_id == 0:
-                    recv_prev = False
+            if (
+                gpc.is_pipeline_first_stage(ignore_virtual=True)
+                and next_forward_model_chunk_id == 0
+            ):
+                recv_prev = False
             if k == (num_microbatches - 1):
                 recv_prev = False
 
@@ -706,14 +703,14 @@ class InterleavedPipelineSchedule(PipelineSchedule):
             # in this iteration; receive tensors for next iteration).
             input_shape = input_obj_shapes[next_forward_model_chunk_id] if recv_prev else None
             if k == (num_warmup_microbatches - 1) and not forward_only and \
-                    not all_warmup_microbatches:
+                        not all_warmup_microbatches:
                 input_obj_grad = None
                 recv_next = True
                 if gpc.is_pipeline_last_stage(ignore_virtual=True):
                     recv_next = False
                 output_shape = output_obj_shapes[num_model_chunks - 1] if recv_next else None
                 input_obj, output_obj_grad = \
-                    comm.send_forward_backward_recv_forward_backward(
+                        comm.send_forward_backward_recv_forward_backward(
                         output_obj, input_obj_grad,
                         input_shape,
                         output_shape,
@@ -723,7 +720,7 @@ class InterleavedPipelineSchedule(PipelineSchedule):
                 output_obj_grads[num_model_chunks - 1].append(output_obj_grad)
             else:
                 input_obj = \
-                    comm.send_forward_recv_forward(
+                        comm.send_forward_recv_forward(
                         output_obj,
                         input_shape,
                         recv_prev=recv_prev,
@@ -788,7 +785,7 @@ class InterleavedPipelineSchedule(PipelineSchedule):
             output_shape = output_obj_shapes[next_backward_model_chunk_id] if recv_next else None
             # Communicate objs.
             input_obj, output_obj_grad = \
-                comm.send_forward_backward_recv_forward_backward(
+                    comm.send_forward_backward_recv_forward_backward(
                     output_obj, input_obj_grad,
                     input_shape,
                     output_shape,
@@ -813,9 +810,10 @@ class InterleavedPipelineSchedule(PipelineSchedule):
                 input_obj_grad = _backward_step_helper(k)
                 next_backward_model_chunk_id = get_model_chunk_id(k + 1, forward=False)
                 recv_next = True
-                if gpc.is_pipeline_last_stage(ignore_virtual=True):
-                    if next_backward_model_chunk_id == (num_model_chunks - 1):
-                        recv_next = False
+                if gpc.is_pipeline_last_stage(
+                    ignore_virtual=True
+                ) and next_backward_model_chunk_id == (num_model_chunks - 1):
+                    recv_next = False
                 if k == (num_microbatches - 1):
                     recv_next = False
                 output_shape = output_obj_shapes[next_backward_model_chunk_id] if recv_next else None
@@ -826,7 +824,7 @@ class InterleavedPipelineSchedule(PipelineSchedule):
                                                      dtype=self.dtype,
                                                      scatter_gather_tensors=self.scatter_gather_tensors))
 
-        if len(return_tensors) > 0:
+        if return_tensors:
             output, label = pack_return_tensors(return_tensors)
             return output, label, accum_loss
         else:

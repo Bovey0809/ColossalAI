@@ -96,7 +96,9 @@ def solution_annotatation_pass(gm: torch.fx.GraphModule, solution: List[int],
         # the get_attr node strategy is kind of pending strategy, which means we will change it
         # to the same strategy of the user node.
         if node.op == 'get_attr':
-            assert len(target_sharding_specs) == 1, f'sharing weight is not supported in current version.'
+            assert (
+                len(target_sharding_specs) == 1
+            ), 'sharing weight is not supported in current version.'
             target_node = node.strategies_vector.successor_nodes[0]
             node_name = str(node)
             if target_node.op == 'call_function' and target_node.target in RESHAPE_FUNC_OP:
@@ -114,9 +116,10 @@ def solution_annotatation_pass(gm: torch.fx.GraphModule, solution: List[int],
                 new_communication_actions[origin_op_data] = new_communication_action
             node.best_strategy.communication_actions = new_communication_actions
 
-        comm_action_dict = {}
-        for op_data, comm_action in node.best_strategy.communication_actions.items():
-            comm_action_dict[op_data.name] = comm_action
+        comm_action_dict = {
+            op_data.name: comm_action
+            for op_data, comm_action in node.best_strategy.communication_actions.items()
+        }
         comm_actions_dict[index] = comm_action_dict
 
     # add above dicts into graph
@@ -208,10 +211,7 @@ def size_value_converting_pass(gm: torch.fx.GraphModule, device_mesh: DeviceMesh
                 step = node_pairs[step]
             return slice(start, stop, step)
         elif isinstance(slice_object, int):
-            if slice_object in node_pairs:
-                return node_pairs[slice_object]
-            else:
-                return slice_object
+            return node_pairs[slice_object] if slice_object in node_pairs else slice_object
         else:
             raise RuntimeError(f"Unsupported slice object type: {type(slice_object)}")
 
@@ -361,9 +361,7 @@ def node_args_converting_pass(gm: torch.fx.GraphModule, device_mesh: DeviceMesh)
         else:
             target = None
 
-        if target in SHAPE_ARGUMENT_OPS:
-            return True
-        return False
+        return target in SHAPE_ARGUMENT_OPS
 
     for node in nodes:
         # skip the placeholder node added in _solution_annotation pass
@@ -394,10 +392,11 @@ def module_params_sharding_pass(gm: torch.fx.GraphModule, device_mesh: DeviceMes
         def _filter_param_to_hook(node, op_data, comm_action):
             if node.op == 'call_module' and op_data.type == OperationDataType.PARAM and op_data.name == param.name and comm_action.comm_type == CommType.HOOK:
                 return True
-            if node.op == 'get_attr' and isinstance(
-                    node._meta_data, torch.nn.parameter.Parameter) and comm_action.comm_type == CommType.HOOK:
-                return True
-            return False
+            return (
+                node.op == 'get_attr'
+                and isinstance(node._meta_data, torch.nn.parameter.Parameter)
+                and comm_action.comm_type == CommType.HOOK
+            )
 
         for operation_data, comm_action in comm_actions.items():
             comm_spec_to_use = comm_action.comm_spec

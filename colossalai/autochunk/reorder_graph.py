@@ -28,7 +28,7 @@ class ReorderGraph(object):
             if n in chunk_prepose_nodes:
                 continue
             n_idx = self.node_mgr.find_node_idx(n)
-            pos = sum([n_idx < i for i in chunk_prepose_nodes_idx])
+            pos = sum(n_idx < i for i in chunk_prepose_nodes_idx)
             reorder_map[n_idx] = n_idx + pos
 
         return reorder_map
@@ -40,10 +40,8 @@ class ReorderGraph(object):
             chunk_info["region"][1],
         )
         new_inputs_dim = []
-        for _, input_dim in enumerate(chunk_info["inputs_dim"]):
-            new_input_dim = {}
-            for k, v in input_dim.items():
-                new_input_dim[reorder_map[k]] = v
+        for input_dim in chunk_info["inputs_dim"]:
+            new_input_dim = {reorder_map[k]: v for k, v in input_dim.items()}
             new_inputs_dim.append(new_input_dim)
         chunk_info["inputs_dim"] = new_inputs_dim
         return chunk_info
@@ -74,9 +72,7 @@ class ReorderGraph(object):
         for idx_trace in self.trace_indice.indice_trace_list:
             source = idx_trace["source"]
             for dim_idx, dim_source in enumerate(source):
-                new_dim_source = {}
-                for k, v in dim_source.items():
-                    new_dim_source[reorder_map[k]] = v
+                new_dim_source = {reorder_map[k]: v for k, v in dim_source.items()}
                 source[dim_idx] = new_dim_source
 
     def reorder_all(self, chunk_info):

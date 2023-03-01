@@ -21,9 +21,7 @@ class WhereHandler(NodeHandler):
 
     def get_strategy_generator(self) -> List[StrategyGenerator]:
         logical_op_data_mapping, _ = self.get_operation_data_mapping()
-        generators = []
-        generators.append(WhereGenerator(logical_op_data_mapping, self.device_mesh))
-        return generators
+        return [WhereGenerator(logical_op_data_mapping, self.device_mesh)]
 
     def get_operation_data_mapping(self) -> Dict[str, OperationData]:
         # use transposed shape for strategies
@@ -45,11 +43,12 @@ class WhereHandler(NodeHandler):
             "output": physical_output
         }
         logical_shape_for_all = self.node._meta_data.shape
-        logical_mapping = {}
-        for key, physical_operand in physical_mapping.items():
-            logical_mapping[key] = self.convert_physical_operand_to_logical_operand(physical_operand,
-                                                                                    logical_shape_for_all)
-
+        logical_mapping = {
+            key: self.convert_physical_operand_to_logical_operand(
+                physical_operand, logical_shape_for_all
+            )
+            for key, physical_operand in physical_mapping.items()
+        }
         return logical_mapping, physical_mapping
 
     def convert_physical_operand_to_logical_operand(self, physical_operand, target_shape):

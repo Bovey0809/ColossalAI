@@ -90,7 +90,7 @@ def pytree_map(obj: Any, fn: Callable, process_types: Union[Type, Tuple[Type]] =
     elif isinstance(obj, tuple):
         return tuple(pytree_map(o, fn, process_types, map_all) for o in obj)
     elif isinstance(obj, list):
-        return list(pytree_map(o, fn, process_types, map_all) for o in obj)
+        return [pytree_map(o, fn, process_types, map_all) for o in obj]
     elif isinstance(obj, process_types):
         return fn(obj)
     else:

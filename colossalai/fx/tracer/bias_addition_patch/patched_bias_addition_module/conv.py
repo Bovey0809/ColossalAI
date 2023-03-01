@@ -15,10 +15,11 @@ class BiasAdditionConv(BiasAdditionModule):
         root = self.tracer.root
         conv_module = root.get_submodule(self.target)
         kwarg_attributes = ['groups', 'dilation', 'stride']
-        non_bias_kwargs = {}
-        for attr_name in kwarg_attributes:
-            if hasattr(conv_module, attr_name):
-                non_bias_kwargs[attr_name] = getattr(conv_module, attr_name)
+        non_bias_kwargs = {
+            attr_name: getattr(conv_module, attr_name)
+            for attr_name in kwarg_attributes
+            if hasattr(conv_module, attr_name)
+        }
         if conv_module.padding_mode != "zeros":
             #TODO: non zeros mode requires some extra processing for input
             conv_type = type(conv_module)
@@ -44,13 +45,17 @@ class BiasAdditionConv(BiasAdditionModule):
         bias_reshape_node_kind = 'call_method'
         bias_reshape_node_target = 'view'
         bias_reshape_node_args = (self.bias_proxy, torch.Size(bias_shape))
-        bias_reshape_proxy = self.tracer.create_proxy(bias_reshape_node_kind, bias_reshape_node_target,
-                                                      bias_reshape_node_args, {})
-        return bias_reshape_proxy
+        return self.tracer.create_proxy(
+            bias_reshape_node_kind,
+            bias_reshape_node_target,
+            bias_reshape_node_args,
+            {},
+        )
 
     def generate(self):
         non_bias_conv_func_proxy = self.create_non_bias_func_proxy()
         output_dims = non_bias_conv_func_proxy.meta_data.dim()
         bias_reshape_proxy = self.create_bias_reshape_proxy(output_dims)
-        bias_addition_proxy = self.create_bias_addition_proxy(non_bias_conv_func_proxy, bias_reshape_proxy)
-        return bias_addition_proxy
+        return self.create_bias_addition_proxy(
+            non_bias_conv_func_proxy, bias_reshape_proxy
+        )

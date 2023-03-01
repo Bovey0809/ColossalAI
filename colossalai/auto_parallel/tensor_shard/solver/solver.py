@@ -2,6 +2,7 @@
     https://github.com/alpa-projects/alpa/
    with some changes. """
 
+
 import multiprocessing
 import time
 import warnings
@@ -21,7 +22,7 @@ try:
     import pulp
     from pulp import LpMinimize, LpProblem, LpStatus, LpVariable, lpDot, lpSum
 except:
-    warnings.warn(f'please install the pulp')
+    warnings.warn('please install the pulp')
 
 __all___ = ['Solver']
 
@@ -92,10 +93,10 @@ class Solver:
                         break
 
     def _generate_node_index_dict(self) -> Dict[Node, int]:
-        node_index_dict = {}
-        for index, strategies_vector in enumerate(self.leaf_strategies):
-            node_index_dict[strategies_vector.node] = index
-        return node_index_dict
+        return {
+            strategies_vector.node: index
+            for index, strategies_vector in enumerate(self.leaf_strategies)
+        }
 
     def _prepare_data_for_solver(self):
         '''
@@ -104,19 +105,15 @@ class Solver:
         node_nums = len(self.leaf_strategies)
         memory_budget = self.memory_budget
 
-        # prepare strategies_len
-        strategies_len = []
-        for node in self.nodes:
-            strategies_len.append(self.cost_graph.node_lens[node])
+        strategies_len = [self.cost_graph.node_lens[node] for node in self.nodes]
         strategies_len = np.array(strategies_len)
 
         # prepare following_nodes
         following_nodes = self.cost_graph.following_dict
-        index_following_nodes = {}
-        for src, target in following_nodes.items():
-            src_index = self.node_index_dict[src]
-            target_index = self.node_index_dict[target]
-            index_following_nodes[src_index] = target_index
+        index_following_nodes = {
+            self.node_index_dict[src]: self.node_index_dict[target]
+            for src, target in following_nodes.items()
+        }
         following_nodes = index_following_nodes
         for index in range(node_nums):
             if index not in following_nodes:
@@ -130,12 +127,12 @@ class Solver:
             dst_node = pairs[1]
             src_node_index = self.node_index_dict[src_node]
             dst_node_index = self.node_index_dict[dst_node]
-            edge_pairs.append(src_node_index)
-            edge_pairs.append(dst_node_index)
-
+            edge_pairs.extend((src_node_index, dst_node_index))
             for i in range(strategies_len[src_node_index]):
-                for j in range(strategies_len[dst_node_index]):
-                    resharding_costs.append(edge_cost[(i, j)])
+                resharding_costs.extend(
+                    edge_cost[(i, j)]
+                    for j in range(strategies_len[dst_node_index])
+                )
         edge_pairs = np.array(edge_pairs)
         resharding_costs = np.array(resharding_costs)
 
@@ -403,13 +400,13 @@ class Solver:
             # (f)
             for row in range(len(s[i])):
                 C = len(s[j])    # noqa
-                prob += lpSum(e[idx][row * C + col] for col in range(0, C)) <= s[i][row]
+                prob += lpSum(e[idx][row * C + col] for col in range(C)) <= s[i][row]
 
             # (g)
             for col in range(len(s[j])):
                 R = len(s[i])    # noqa
                 C = len(s[j])    # noqa
-                prob += lpSum(e[idx][row * C + col] for row in range(0, R)) <= s[j][col]
+                prob += lpSum(e[idx][row * C + col] for row in range(R)) <= s[j][col]
 
         # (h)
         ######################
@@ -483,10 +480,7 @@ class Solver:
         """
         if self.solution_numbers == 1:
             args = self._prepare_data_for_solver()
-            ret = self._call_solver_serialized_args(*args)
-
-            return ret
-
+            return self._call_solver_serialized_args(*args)
         origin_memory_budget = self.memory_budget
         memory_budget_list = [
             origin_memory_budget * self.memory_increasing_coefficient**i for i in range(self.solution_numbers)

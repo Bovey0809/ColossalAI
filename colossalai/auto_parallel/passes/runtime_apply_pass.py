@@ -36,13 +36,17 @@ def runtime_apply_for_iterable_object(node: Node, origin_dict: Dict, input_dict:
     This method will be invoked during runtime to do the shape consistency, which makes sure the activations in type of tuple or list
     is converted into the user node expected form.
     """
-    rst = []
-    for index, (origin_sharding_spec,
-                target_sharding_spec) in enumerate(zip(origin_dict[node_index],
-                                                       input_dict[node_index][user_node_index])):
-        rst.append(
-            shape_consistency_manager.apply_for_autoparallel_runtime(node[index], origin_sharding_spec,
-                                                                     target_sharding_spec))
+    rst = [
+        shape_consistency_manager.apply_for_autoparallel_runtime(
+            node[index], origin_sharding_spec, target_sharding_spec
+        )
+        for index, (origin_sharding_spec, target_sharding_spec) in enumerate(
+            zip(
+                origin_dict[node_index],
+                input_dict[node_index][user_node_index],
+            )
+        )
+    ]
     rst = type(node)(rst)
     return rst
 
@@ -53,12 +57,12 @@ def runtime_comm_spec_apply(tensor: torch.Tensor, comm_actions_dict: Dict, node_
     """
     comm_action = comm_actions_dict[node_index][op_data_name]
     if isinstance(comm_action.comm_spec, CommSpec):
-        rst = comm_action.comm_spec.covert_spec_to_action(tensor)
-    else:
-        origin_sharding_spec = comm_action.comm_spec['src_spec']
-        tgt_sharding_spec = comm_action.comm_spec['tgt_spec']
-        rst = shape_consistency_manager.apply_for_autoparallel_runtime(tensor, origin_sharding_spec, tgt_sharding_spec)
-    return rst
+        return comm_action.comm_spec.covert_spec_to_action(tensor)
+    origin_sharding_spec = comm_action.comm_spec['src_spec']
+    tgt_sharding_spec = comm_action.comm_spec['tgt_spec']
+    return shape_consistency_manager.apply_for_autoparallel_runtime(
+        tensor, origin_sharding_spec, tgt_sharding_spec
+    )
 
 
 def _preprocess_graph(nodes: List[Node]):
@@ -106,10 +110,15 @@ def _shape_consistency_apply(gm: torch.fx.GraphModule):
                     node.target_sharding_specs,
                     (list,
                      tuple)), 'target sharding specs should be tuple or list when node.sharding_spec is tuple or list'
-                total_difference = 0
-                for sharding_spec, target_sharding_spec in zip(node.sharding_spec,
-                                                               node.target_sharding_specs[user_node_index]):
-                    total_difference += sharding_spec.sharding_sequence_difference(target_sharding_spec)
+                total_difference = sum(
+                    sharding_spec.sharding_sequence_difference(
+                        target_sharding_spec
+                    )
+                    for sharding_spec, target_sharding_spec in zip(
+                        node.sharding_spec,
+                        node.target_sharding_specs[user_node_index],
+                    )
+                )
                 if total_difference == 0:
                     continue
                 with mod_graph.inserting_before(user_node):
@@ -228,16 +237,22 @@ def _act_annotataion_pass(gm: torch.fx.GraphModule):
         if not hasattr(node.meta, 'activation_checkpoint'):
             from .runtime_preparation_pass import size_processing
 
-            user_act_annotation = -1
-            input_act_annotation = -1
-            for user_node in node.users.keys():
-                if 'activation_checkpoint' in user_node.meta:
-                    user_act_annotation = user_node.meta['activation_checkpoint']
-                    break
-            for input_node in node._input_nodes.keys():
-                if 'activation_checkpoint' in input_node.meta:
-                    input_act_annotation = input_node.meta['activation_checkpoint']
-                    break
+            user_act_annotation = next(
+                (
+                    user_node.meta['activation_checkpoint']
+                    for user_node in node.users.keys()
+                    if 'activation_checkpoint' in user_node.meta
+                ),
+                -1,
+            )
+            input_act_annotation = next(
+                (
+                    input_node.meta['activation_checkpoint']
+                    for input_node in node._input_nodes.keys()
+                    if 'activation_checkpoint' in input_node.meta
+                ),
+                -1,
+            )
             if user_act_annotation == input_act_annotation and user_act_annotation != -1:
                 node.meta['activation_checkpoint'] = user_act_annotation
 

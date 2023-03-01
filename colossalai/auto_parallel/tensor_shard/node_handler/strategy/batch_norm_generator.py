@@ -38,7 +38,10 @@ class BatchNormStrategyGenerator(StrategyGenerator):
         '''
         input_op_data = self.op_data['input']
         assert input_op_data.data.dim() in (
-            3, 4, 5), f'We suppose the dim of input fed into conv op should in range of [3, 5].'
+            3,
+            4,
+            5,
+        ), 'We suppose the dim of input fed into conv op should in range of [3, 5].'
 
     def update_compute_cost(self, strategy: ShardingStrategy):
         '''
@@ -85,16 +88,28 @@ class BatchNormStrategyGenerator(StrategyGenerator):
         # compute fwd cost incurred
         # fwd_cost = input + other + bias + output
         fwd_activation_cost = sum(
-            [v for k, v in forward_size_mapping.items() if not self.is_param(k) and not self.is_buffer(k)])
-        fwd_parameter_cost = sum([v for k, v in forward_size_mapping.items() if self.is_param(k)])
-        fwd_buffer_cost = sum([v for k, v in forward_size_mapping.items() if self.is_buffer(k)])
+            v
+            for k, v in forward_size_mapping.items()
+            if not self.is_param(k) and not self.is_buffer(k)
+        )
+        fwd_parameter_cost = sum(
+            v for k, v in forward_size_mapping.items() if self.is_param(k)
+        )
+        fwd_buffer_cost = sum(
+            v for k, v in forward_size_mapping.items() if self.is_buffer(k)
+        )
         fwd_mem_cost = MemoryCost(activation=fwd_activation_cost, parameter=fwd_parameter_cost, buffer=fwd_buffer_cost)
 
         # compute bwd cost incurred
         # bwd_cost = input_grad + other_grad + bias_grad
         bwd_activation_cost = sum(
-            [v for k, v in backward_size_mapping.items() if not self.is_param(k) and not self.is_buffer(k)])
-        bwd_parameter_cost = sum([v for k, v in backward_size_mapping.items() if self.is_param(k)])
+            v
+            for k, v in backward_size_mapping.items()
+            if not self.is_param(k) and not self.is_buffer(k)
+        )
+        bwd_parameter_cost = sum(
+            v for k, v in backward_size_mapping.items() if self.is_param(k)
+        )
         bwd_mem_cost = MemoryCost(activation=bwd_activation_cost, parameter=bwd_parameter_cost)
 
         # compute total cost
@@ -170,7 +185,7 @@ class BatchNormStrategyGenerator(StrategyGenerator):
 
     @ignore_sharding_exception
     def non_split(self):
-        name = f'RR = RR x R'
+        name = 'RR = RR x R'
         dim_partition_dict_mapping = {
             "input": {},
             "other": {},
@@ -319,9 +334,7 @@ class BatchNormStrategyGenerator(StrategyGenerator):
         Generate every possible strategies for a BatchNorm node, and record all strategies into the strategies_vector.
         '''
 
-        strategy_list = []
-        # RS = RS x S
-        strategy_list.append(self.split_input_channel(0))
+        strategy_list = [self.split_input_channel(0)]
         strategy_list.append(self.split_input_channel(1))
 
         # RR = RR x R

@@ -128,11 +128,7 @@ class GradScaler(object):
         # check version
         torch_version = version.parse(torch.__version__)
         assert torch_version.major == 1
-        if torch_version.minor > 8:
-            self._higher_than_torch18 = True
-        else:
-            self._higher_than_torch18 = False
-
+        self._higher_than_torch18 = torch_version.minor > 8
         if self._enabled:
             assert growth_factor > 1.0, "The growth factor must be > 1.0."
             assert backoff_factor < 1.0, "The backoff factor must be < 1.0."
@@ -150,8 +146,12 @@ class GradScaler(object):
 
     def _check_scale_growth_tracker(self, funcname) -> Tuple[torch.Tensor, torch.Tensor]:
         fix = "This may indicate your script did not use scaler.scale(loss or outputs) earlier in the iteration."
-        assert self._scale is not None, "Attempted {} but _scale is None.  ".format(funcname) + fix
-        assert self._growth_tracker is not None, "Attempted {} but _growth_tracker is None.  ".format(funcname) + fix
+        assert (
+            self._scale is not None
+        ), f"Attempted {funcname} but _scale is None.  {fix}"
+        assert (
+            self._growth_tracker is not None
+        ), f"Attempted {funcname} but _growth_tracker is None.  {fix}"
         return (self._scale, self._growth_tracker)
 
     def _lazy_init_scale_growth_tracker(self, dev):
@@ -187,7 +187,7 @@ class GradScaler(object):
         def apply_scale(val):
             if isinstance(val, torch.Tensor):
                 assert val.is_cuda or val.device.type == 'xla'
-                if len(stash) == 0:
+                if not stash:
                     if self._scale is None:
                         self._lazy_init_scale_growth_tracker(val.device)
                     assert self._scale is not None
@@ -195,10 +195,7 @@ class GradScaler(object):
                 return val * stash[0].get(val.device)
             elif isinstance(val, abc.Iterable):
                 iterable = map(apply_scale, val)
-                if isinstance(val, list) or isinstance(val, tuple):
-                    return type(val)(iterable)
-                else:
-                    return iterable
+                return type(val)(iterable) if isinstance(val, (list, tuple)) else iterable
             else:
                 raise ValueError("outputs must be a Tensor or an iterable of Tensors")
 
@@ -242,7 +239,7 @@ class GradScaler(object):
                                                                      per_device_inv_scale.get(device))
         # For tensor parallel paramters it should be all-reduced over tensor parallel process group
         if gpc.is_initialized(ParallelMode.MODEL) and gpc.get_world_size(ParallelMode.MODEL) > 1:
-            vals = [val for val in per_device_found_inf._per_device_tensors.values()]
+            vals = list(per_device_found_inf._per_device_tensors.values())
             coalesced = _flatten_dense_tensors(vals)
             dist.all_reduce(coalesced, op=dist.ReduceOp.MAX, group=gpc.get_group(ParallelMode.MODEL))
             for buf, synced in zip(vals, _unflatten_dense_tensors(coalesced, vals)):
@@ -302,10 +299,13 @@ class GradScaler(object):
         optimizer_state["stage"] = OptState.UNSCALED
 
     def _maybe_opt_step(self, optimizer, optimizer_state, *args, **kwargs):
-        retval = None
-        if not sum(v.item() for v in optimizer_state["found_inf_per_device"].values()):
-            retval = optimizer.step(*args, **kwargs)
-        return retval
+        return (
+            None
+            if sum(
+                v.item() for v in optimizer_state["found_inf_per_device"].values()
+            )
+            else optimizer.step(*args, **kwargs)
+        )
 
     def step(self, optimizer, *args, **kwargs):
         """
@@ -408,7 +408,7 @@ class GradScaler(object):
                 for found_inf in state["found_inf_per_device"].values()
             ]
 
-            assert len(found_infs) > 0, "No inf checks were recorded prior to update."
+            assert found_infs, "No inf checks were recorded prior to update."
 
             found_inf_combined = found_infs[0]
             if len(found_infs) > 1:

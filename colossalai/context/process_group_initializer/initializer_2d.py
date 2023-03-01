@@ -10,10 +10,7 @@ from .process_group_initializer import ProcessGroupInitializer
 
 
 def _check_summa_env_var(summa_dim):
-    # check environment variable for SUMMA
-    env_summa_dim = env.summa_dim
-
-    if env_summa_dim:
+    if env_summa_dim := env.summa_dim:
         assert int(env_summa_dim) == summa_dim, \
             'SUMMA_DIM has been set in the current environment and ' \
             'does not match with the value passed to this initialized'
@@ -151,5 +148,7 @@ class Initializer_2D(ProcessGroupInitializer):
             List[Tuple (local_rank, group_world_size, process_group, ranks_in_group, mode)]:
                 2D tensor parallelism's information in a list of tuples.
         """
-        parallel_setting = [self.row_initializer.init_dist_group(), self.col_initializer.init_dist_group()]
-        return parallel_setting
+        return [
+            self.row_initializer.init_dist_group(),
+            self.col_initializer.init_dist_group(),
+        ]

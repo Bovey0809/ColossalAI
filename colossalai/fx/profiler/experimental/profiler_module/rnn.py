@@ -42,12 +42,12 @@ def torch_nn_rnn(self: torch.nn.RNNBase, input: torch.Tensor, hx: Optional[torch
     flops = 0
     macs = 0
     for i in range(self.num_layers):
-        w_ih = self.__getattr__('weight_ih_l' + str(i))
-        w_hh = self.__getattr__('weight_hh_l' + str(i))
+        w_ih = self.__getattr__(f'weight_ih_l{str(i)}')
+        w_hh = self.__getattr__(f'weight_hh_l{str(i)}')
         flops, macs = _rnn_flops(flops, macs, self, w_ih, w_hh)
         if self.bias:
-            b_ih = self.__getattr__('bias_ih_l' + str(i))
-            b_hh = self.__getattr__('bias_hh_l' + str(i))
+            b_ih = self.__getattr__(f'bias_ih_l{str(i)}')
+            b_hh = self.__getattr__(f'bias_hh_l{str(i)}')
             flops += reduce(operator.mul, b_ih) + reduce(operator.mul, b_hh)
     flops *= reduce(operator.mul, input.shape[:2])
     macs *= reduce(operator.mul, input.shape[:2])

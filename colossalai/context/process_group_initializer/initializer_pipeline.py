@@ -34,7 +34,7 @@ class Initializer_Pipeline(ProcessGroupInitializer):
             List[Tuple (local_rank, group_world_size, process_group, ranks_in_group, mode)]:
                 A Pipeline parallelism's information in list of tuples.
         """
-        dist_settings = list()
+        dist_settings = []
         for i in range(self.data_parallel_size):
             for j in range(self.pipeline_stage_size):
                 pipe_ranks = list(
@@ -50,7 +50,14 @@ class Initializer_Pipeline(ProcessGroupInitializer):
                     cpu_group = group_cpu
                     ranks_in_group = pipe_ranks
                     dist_settings.append(
-                        tuple((local_rank, group_world_size, process_group, cpu_group, ranks_in_group,
-                               ParallelMode.PIPELINE)))
+                        (
+                            local_rank,
+                            group_world_size,
+                            process_group,
+                            cpu_group,
+                            ranks_in_group,
+                            ParallelMode.PIPELINE,
+                        )
+                    )
 
         return dist_settings

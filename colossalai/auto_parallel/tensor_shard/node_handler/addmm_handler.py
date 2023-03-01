@@ -23,11 +23,11 @@ class ADDMMFunctionHandler(NodeHandler):
     """
 
     def _infer_op_data_type(self, tensor: torch.Tensor) -> OperationDataType:
-        if isinstance(tensor, torch.nn.parameter.Parameter):
-            data_type = OperationDataType.PARAM
-        else:
-            data_type = OperationDataType.ARG
-        return data_type
+        return (
+            OperationDataType.PARAM
+            if isinstance(tensor, torch.nn.parameter.Parameter)
+            else OperationDataType.ARG
+        )
 
     def get_operation_data_mapping(self) -> Dict[str, OperationData]:
 
@@ -53,21 +53,20 @@ class ADDMMFunctionHandler(NodeHandler):
         # output
         physical_output = OperationData(name=str(self.node), type=OperationDataType.OUTPUT, data=self.node._meta_data)
 
-        mapping = {
+        return {
             "input": physical_input_operand,
             "other": physical_other_operand,
             "output": physical_output,
-            'bias': physical_bias_operand
+            'bias': physical_bias_operand,
         }
-
-        return mapping
 
     def get_strategy_generator(self) -> List[StrategyGenerator]:
         op_data_mapping = self.get_operation_data_mapping()
-        generators = []
-        generators.append(
-            LinearProjectionStrategyGenerator(op_data_mapping, self.device_mesh, linear_projection_type='addmm'))
-        return generators
+        return [
+            LinearProjectionStrategyGenerator(
+                op_data_mapping, self.device_mesh, linear_projection_type='addmm'
+            )
+        ]
 
     def post_process(self, strategy: ShardingStrategy) -> Union[ShardingStrategy, List[ShardingStrategy]]:
         # convert bias from its logical sharding spec to its physical sharding spec

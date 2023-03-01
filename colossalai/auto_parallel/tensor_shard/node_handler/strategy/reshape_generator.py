@@ -45,14 +45,22 @@ class ReshapeGenerator(FollowingStrategyGenerator):
         backward_size_mapping.pop("output")
         # compute fwd cost incurred
         # fwd_cost = input + output
-        fwd_activation_cost = sum([v for k, v in forward_size_mapping.items() if not self.is_param(k)])
-        fwd_parameter_cost = sum([v for k, v in forward_size_mapping.items() if self.is_param(k)])
+        fwd_activation_cost = sum(
+            v for k, v in forward_size_mapping.items() if not self.is_param(k)
+        )
+        fwd_parameter_cost = sum(
+            v for k, v in forward_size_mapping.items() if self.is_param(k)
+        )
         fwd_mem_cost = MemoryCost(activation=fwd_activation_cost, parameter=fwd_parameter_cost)
 
         # compute bwd cost incurred
         # bwd_cost = input_grad
-        bwd_activation_cost = sum([v for k, v in backward_size_mapping.items() if not self.is_param(k)])
-        bwd_parameter_cost = sum([v for k, v in backward_size_mapping.items() if self.is_param(k)])
+        bwd_activation_cost = sum(
+            v for k, v in backward_size_mapping.items() if not self.is_param(k)
+        )
+        bwd_parameter_cost = sum(
+            v for k, v in backward_size_mapping.items() if self.is_param(k)
+        )
         bwd_mem_cost = MemoryCost(activation=bwd_activation_cost, parameter=bwd_parameter_cost)
 
         # compute total cost
@@ -161,11 +169,11 @@ class PermuteGenerator(ReshapeGenerator):
 
             permute_dims = self.op_data['permute_dims'].data
             dim_partition_dict_for_input = input_sharding_spec.dim_partition_dict
-            dim_partition_dict_for_output = {}
-            for dim_index, permute_dim in enumerate(permute_dims):
-                if permute_dim in dim_partition_dict_for_input:
-                    dim_partition_dict_for_output[dim_index] = dim_partition_dict_for_input[permute_dim]
-
+            dim_partition_dict_for_output = {
+                dim_index: dim_partition_dict_for_input[permute_dim]
+                for dim_index, permute_dim in enumerate(permute_dims)
+                if permute_dim in dim_partition_dict_for_input
+            }
             dim_partition_dict_mapping = {
                 "input": dim_partition_dict_for_input,
                 "output": dim_partition_dict_for_output,

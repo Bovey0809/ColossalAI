@@ -11,9 +11,8 @@ def is_element_in_list(elements: Union[List[Any], Any], list_: List[Any]):
         for ele in elements:
             if ele not in list_:
                 return False, ele
-    else:
-        if elements not in list_:
-            return False, elements
+    elif elements not in list_:
+        return False, elements
 
     return True, None
 

@@ -37,7 +37,7 @@ def fetch_hostfile(hostfile_path: str, ssh_port: int) -> HostInfoList:
     with open(hostfile_path, 'r') as fd:
         device_pool = HostInfoList()
 
-        for line in fd.readlines():
+        for line in fd:
             line = line.strip()
             if line == '':
                 # skip empty lines
@@ -142,7 +142,7 @@ def get_launch_command(
         return ret
 
     if extra_launch_args:
-        extra_launch_args_dict = dict()
+        extra_launch_args_dict = {}
         for arg in extra_launch_args.split(','):
             if '=' in arg:
                 k, v = arg.split('=')
@@ -151,7 +151,7 @@ def get_launch_command(
                 extra_launch_args_dict[arg] = None
         extra_launch_args = extra_launch_args_dict
     else:
-        extra_launch_args = dict()
+        extra_launch_args = {}
 
     torch_version = version.parse(torch.__version__)
     assert torch_version.major == 1
@@ -169,7 +169,7 @@ def get_launch_command(
                                           rdzv_id="colossalai-default-job")
 
         # update rdzv arguments
-        for key in default_torchrun_rdzv_args.keys():
+        for key in default_torchrun_rdzv_args:
             if key in extra_launch_args:
                 value = extra_launch_args.pop(key)
                 default_torchrun_rdzv_args[key] = value
@@ -257,13 +257,7 @@ def launch_multi_processes(args: Config) -> None:
     runner = MultiNodeRunner()
     curr_path = os.path.abspath('.')
 
-    # collect current path env
-    env = dict()
-    for k, v in os.environ.items():
-        # do not support multi-line env var
-        if v and '\n' not in v:
-            env[k] = v
-
+    env = {k: v for k, v in os.environ.items() if v and '\n' not in v}
     # establish remote connection
     runner.connect(host_info_list=active_device_pool, workdir=curr_path, env=env)
 

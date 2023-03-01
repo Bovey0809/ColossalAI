@@ -39,7 +39,7 @@ class HostInfo:
         # socket.getfqdn("127.0.0.1") does not return localhost
         # on some users' machines
         # thus, we directly return True if hostname is locahost, 127.0.0.1 or 0.0.0.0
-        if hostname in ("localhost", "127.0.0.1", "0.0.0.0"):
+        if hostname in {"localhost", "127.0.0.1", "0.0.0.0"}:
             return True
 
         hostname = socket.getfqdn(hostname)
@@ -115,10 +115,7 @@ class HostInfoList:
         Returns:
             bool: True if added, False otherwise
         """
-        for hostinfo in self.hostinfo_list:
-            if hostinfo.hostname == hostname:
-                return True
-        return False
+        return any(hostinfo.hostname == hostname for hostinfo in self.hostinfo_list)
 
     def __iter__(self):
         return iter(self.hostinfo_list)

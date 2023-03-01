@@ -25,9 +25,12 @@ def elementwise_meta_info(temp_mem_scale: float = 0, buffer_mem_scale: float = 0
     def meta_func(*args, **kwargs) -> Tuple[TrainCycleItem, TrainCycleItem, List[torch.Tensor]]:
         input_tensor = next(
             filter(
-                lambda x:
-                (x.type == OperationDataType.ARG or x.type == OperationDataType.PARAM) and x.name != 'softmax_dim',
-                args)).data
+                lambda x: x.type
+                in [OperationDataType.ARG, OperationDataType.PARAM]
+                and x.name != 'softmax_dim',
+                args,
+            )
+        ).data
         output_tensor = next(filter(lambda x: x.type == OperationDataType.OUTPUT, args)).data
         is_inplace = 1 if kwargs.get('inplace', False) else 0
 

@@ -23,9 +23,14 @@ class OutputHandler(NodeHandler):
 
     def get_strategy_generator(self) -> List[StrategyGenerator]:
         op_data_mapping = self.get_operation_data_mapping()
-        generators = []
-        generators.append(OutputGenerator(op_data_mapping, self.device_mesh, self.predecessor_node, self.output_option))
-        return generators
+        return [
+            OutputGenerator(
+                op_data_mapping,
+                self.device_mesh,
+                self.predecessor_node,
+                self.output_option,
+            )
+        ]
 
     def get_operation_data_mapping(self) -> Dict[str, OperationData]:
         # use transposed shape for strategies
@@ -39,7 +44,7 @@ class OutputHandler(NodeHandler):
             mapping[name_key] = physical_inputs
             output_meta_data.append(input_meta_data)
 
-        assert len(output_meta_data) > 0, f'Output node {self.node} has no input node.'
+        assert output_meta_data, f'Output node {self.node} has no input node.'
         if len(output_meta_data) == 1:
             output_meta_data = output_meta_data[0]
         else:

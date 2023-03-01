@@ -20,7 +20,7 @@ def pack_return_tensors(return_tensors):
     elif isinstance(output[0], (list, tuple)):
         output = tuple(torch.cat(tensors, dim=0) for tensors in zip(*output))
     else:
-        raise TypeError(f'Output of model must be tensor or list/tuple of tensors')
+        raise TypeError('Output of model must be tensor or list/tuple of tensors')
     if isinstance(label[0], torch.Tensor):
         label = torch.cat(label, dim=0)
     else:
@@ -80,12 +80,12 @@ class PipelineScheduleV2(PipelineSchedule):
         """
 
         assert forward_only or return_loss, \
-            'The argument \'return_loss\' has to be True when \'forward_only\' is False, but got False.'
+                'The argument \'return_loss\' has to be True when \'forward_only\' is False, but got False.'
         self.load_batch(data_iter)
 
         # num_warmup_microbatches is the step when not all the processers are working
         num_warmup_microbatches = \
-            (gpc.get_world_size(ParallelMode.PIPELINE)
+                (gpc.get_world_size(ParallelMode.PIPELINE)
              - gpc.get_local_rank(ParallelMode.PIPELINE) - 1)
         num_warmup_microbatches = min(num_warmup_microbatches, self.num_microbatches)
         num_microbatches_remaining = self.num_microbatches - num_warmup_microbatches
@@ -105,7 +105,7 @@ class PipelineScheduleV2(PipelineSchedule):
             accum_loss = None
 
         # Run warmup forward passes.
-        for i in range(num_warmup_microbatches):
+        for _ in range(num_warmup_microbatches):
             input_obj = comm.recv_forward()
 
             output_obj = self._forward_step(engine,
@@ -157,16 +157,11 @@ class PipelineScheduleV2(PipelineSchedule):
 
                 input_obj_grad = self._backward_step(engine, input_obj, output_obj, output_obj_grad)
 
-                if last_iteration:
-                    input_obj = None
-                    comm.send_backward(input_obj_grad)
-                else:
-                    input_obj = comm.recv_forward()
-                    comm.send_backward(input_obj_grad)
-
+                input_obj = None if last_iteration else comm.recv_forward()
+                comm.send_backward(input_obj_grad)
         # Run cooldown backward passes.
         if not forward_only:
-            for i in range(num_warmup_microbatches):
+            for _ in range(num_warmup_microbatches):
                 input_obj = input_objs.pop(0)
                 output_obj = output_objs.pop(0)
 
@@ -174,8 +169,7 @@ class PipelineScheduleV2(PipelineSchedule):
                 input_obj_grad = self._backward_step(engine, input_obj, output_obj, output_obj_grad)
                 comm.send_backward(input_obj_grad)
 
-        if len(return_tensors) > 0:
-            output, label = pack_return_tensors(return_tensors)
-            return output, label, accum_loss
-        else:
+        if not return_tensors:
             return None, None, accum_loss
+        output, label = pack_return_tensors(return_tensors)
+        return output, label, accum_loss

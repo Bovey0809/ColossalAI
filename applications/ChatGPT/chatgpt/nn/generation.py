@@ -111,10 +111,10 @@ def generate(model: nn.Module,
         prepare_inputs_fn (Optional[Callable[[torch.Tensor, Any], dict]], optional): Function to preprocess model inputs. Arguments of this function should be input_ids and model_kwargs. Defaults to None.
         update_model_kwargs_fn (Optional[Callable[[dict, Any], dict]], optional): Function to update model_kwargs based on outputs. Arguments of this function should be outputs and model_kwargs. Defaults to None.
     """
-    is_greedy_gen_mode = ((num_beams == 1) and do_sample is False)
-    is_sample_gen_mode = ((num_beams == 1) and do_sample is True)
-    is_beam_gen_mode = ((num_beams > 1) and do_sample is False)
-    if is_greedy_gen_mode:
+    is_greedy_gen_mode = num_beams == 1 and not do_sample
+    is_sample_gen_mode = num_beams == 1 and do_sample
+    is_beam_gen_mode = num_beams > 1 and not do_sample
+    if is_greedy_gen_mode or not is_sample_gen_mode and is_beam_gen_mode:
         # run greedy search
         raise NotImplementedError
     elif is_sample_gen_mode:
@@ -131,7 +131,5 @@ def generate(model: nn.Module,
                       prepare_inputs_fn=prepare_inputs_fn,
                       update_model_kwargs_fn=update_model_kwargs_fn,
                       **model_kwargs)
-    elif is_beam_gen_mode:
-        raise NotImplementedError
     else:
         raise ValueError("Unsupported generation mode")

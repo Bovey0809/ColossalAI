@@ -33,7 +33,7 @@ class GetattrGenerator(StrategyGenerator):
 
         # compute fwd cost incurred
         # fwd_cost = output
-        fwd_activation_cost = sum([v for k, v in forward_size_mapping.items()])
+        fwd_activation_cost = sum(v for k, v in forward_size_mapping.items())
         fwd_mem_cost = MemoryCost(activation=fwd_activation_cost, parameter=0)
 
         bwd_mem_cost = MemoryCost(activation=0, parameter=0)

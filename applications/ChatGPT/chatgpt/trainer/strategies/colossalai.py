@@ -75,11 +75,14 @@ class ColossalAIStrategy(DDPStrategy):
             max_norm: float = 0.0,
             norm_type: float = 2.0) -> None:
         super().__init__(seed)
-        assert placement_policy in ('cpu', 'cuda'), f'Unsupported placement policy "{placement_policy}"'
+        assert placement_policy in {
+            'cpu',
+            'cuda',
+        }, f'Unsupported placement policy "{placement_policy}"'
         self.stage = stage
         # TODO(ver217): support shard_init when using from_pretrained()
         if shard_init:
-            warnings.warn(f'Shard init is not supported yet. Ignore.')
+            warnings.warn('Shard init is not supported yet. Ignore.')
             shard_init = False
         self.shard_init = shard_init
         self.gemini_config = dict(device=get_current_device(),
@@ -136,9 +139,7 @@ class ColossalAIStrategy(DDPStrategy):
     @staticmethod
     def _unwrap_actor(actor: Actor) -> nn.Module:
         model: Union[nn.Module, ZeroDDP] = Strategy._unwrap_actor(actor)
-        if isinstance(model, ZeroDDP):
-            return model.module
-        return model
+        return model.module if isinstance(model, ZeroDDP) else model
 
     def save_model(self, model: nn.Module, path: str, only_rank0: bool = False) -> None:
         unwrapped_model = self._unwrap_model(model)
@@ -150,5 +151,6 @@ class ColossalAIStrategy(DDPStrategy):
     def save_optimizer(self, optimizer: Optimizer, path: str, only_rank0: bool = False) -> None:
         if only_rank0:
             raise RuntimeError(
-                f'Optimizer states are sharded when using ColossalAIStrategy. Only rank0 is not supported.')
+                'Optimizer states are sharded when using ColossalAIStrategy. Only rank0 is not supported.'
+            )
         torch.save(optimizer.state_dict(), path)

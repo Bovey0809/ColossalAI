@@ -9,7 +9,7 @@ from op_builder.utils import get_cuda_bare_metal_version
 try:
     import torch
     from torch.utils.cpp_extension import CUDA_HOME, BuildExtension, CUDAExtension
-    print("\n\ntorch.__version__  = {}\n\n".format(torch.__version__))
+    print(f"\n\ntorch.__version__  = {torch.__version__}\n\n")
     TORCH_MAJOR = int(torch.__version__.split('.')[0])
     TORCH_MINOR = int(torch.__version__.split('.')[1])
 
@@ -47,7 +47,7 @@ def check_cuda_torch_binary_vs_bare_metal(cuda_dir):
     torch_binary_minor = torch.version.cuda.split(".")[1]
 
     print("\nCompiling cuda extensions with")
-    print(raw_output + "from " + cuda_dir + "/bin\n")
+    print(f"{raw_output}from {cuda_dir}" + "/bin\n")
 
     if bare_metal_major != torch_binary_major:
         print(f'The detected CUDA version ({raw_output}) mismatches the version that was used to compile PyTorch '
@@ -164,7 +164,7 @@ if not is_nightly:
     package_name = 'colossalai'
 else:
     # use date as the nightly version
-    version = datetime.today().strftime('%Y.%m.%d')
+    version = datetime.now().strftime('%Y.%m.%d')
     package_name = 'colossalai-nightly'
 
 setup(name=package_name,

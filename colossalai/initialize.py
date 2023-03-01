@@ -280,10 +280,7 @@ def initialize(model: nn.Module,
     use_zero = hasattr(gpc.config, 'zero')
     if use_zero:
         zero_cfg = gpc.config.get('zero', None)
-        if zero_cfg is not None:
-            cfg_ = zero_cfg.copy()
-        else:
-            cfg_ = {}
+        cfg_ = zero_cfg.copy() if zero_cfg is not None else {}
         optimizer_config = zero_cfg.get('optimizer_config', None)
         model_config = zero_cfg.get('model_config', None)
         model, optimizer = convert_to_zero_v2(model,
@@ -304,19 +301,18 @@ def initialize(model: nn.Module,
             optimizer = optimizer(model.parameters())
             logger.warning("Initializing an non ZeRO model with optimizer class")
 
-    if not use_zero:
-        if is_using_sequence():
-            sync_model_param(model, ParallelMode.SEQUENCE_DP)
-        elif MOE_CONTEXT.is_initialized:
-            sync_moe_model_param(model)
-        elif is_using_ddp():
-            sync_model_param(model, ParallelMode.DATA)
-    else:
+    if use_zero:
         logger.warning(
             "The parameters of models is not automatically synchronized.\n"
             "Please make sure that all parameters are the same in data parallel group.",
             ranks=[0])
 
+    elif is_using_sequence():
+        sync_model_param(model, ParallelMode.SEQUENCE_DP)
+    elif MOE_CONTEXT.is_initialized:
+        sync_moe_model_param(model)
+    elif is_using_ddp():
+        sync_model_param(model, ParallelMode.DATA)
     # check amp and zero
     fp16_cfg = gpc.config.get('fp16', None)
 
@@ -343,7 +339,7 @@ def initialize(model: nn.Module,
                                                      amp_config=cfg_)
 
     # get torch ddp config
-    torch_ddp_cfg = gpc.config.get('torch_ddp', dict())
+    torch_ddp_cfg = gpc.config.get('torch_ddp', {})
 
     # gradient handler
     gradient_handler_cfg = gpc.config.get('gradient_handler', None)
@@ -403,11 +399,10 @@ def initialize(model: nn.Module,
                         "added even though not specified in the configuration",
                         ranks=[0])
                 break
-    else:
-        if not isinstance(gradient_handler_cfg, list):
-            raise ConfigException(
-                f"expected gradient_handler in the configuration file to be a list but got {type(gradient_handler_cfg)}"
-            )
+    elif not isinstance(gradient_handler_cfg, list):
+        raise ConfigException(
+            f"expected gradient_handler in the configuration file to be a list but got {type(gradient_handler_cfg)}"
+        )
 
     # turn off sync buffer for NaiveAMPModel if using torch DDP and NaiveAMPModel at the same time
     # to avoid duplicated buffer synchronization
@@ -418,10 +413,7 @@ def initialize(model: nn.Module,
     if is_using_pp():
         tensor_shape = get_tensor_shape()
         use_interleaved = hasattr(gpc.config, 'model') and hasattr(gpc.config.model, 'num_chunks')
-        if gpc.is_initialized(ParallelMode.PARALLEL_1D):
-            scatter_gather = True
-        else:
-            scatter_gather = False
+        scatter_gather = bool(gpc.is_initialized(ParallelMode.PARALLEL_1D))
         if use_interleaved:
             if isinstance(model, nn.Sequential):
                 model = nn.ModuleList([model])

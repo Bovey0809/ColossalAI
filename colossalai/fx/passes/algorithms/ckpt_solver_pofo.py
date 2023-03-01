@@ -392,10 +392,9 @@ def _annotate_from_pofo_sequence(sequence: Sequence, node_list: List[List[Node]]
                 ckpt_idx += 1
                 ckpt_region = [op.index]
 
-        else:
-            if isinstance(op, ForwardCheck):
-                in_ckpt = True
-                ckpt_region.append(op.index)
+        elif isinstance(op, ForwardCheck):
+            in_ckpt = True
+            ckpt_region.append(op.index)
 
     # annotate the backward if there is any nested activation checkpoint
     in_recompute = False
@@ -427,13 +426,12 @@ def _annotate_from_pofo_sequence(sequence: Sequence, node_list: List[List[Node]]
 
                 in_recompute = False
 
-        else:
-            if not isinstance(op, Backward):
-                in_recompute = True
-                ckpt_idx = 0
-                ckpt_region = []
-                if isinstance(op, ForwardCheck):
-                    ckpt_region.append(op.index)
+        elif not isinstance(op, Backward):
+            in_recompute = True
+            ckpt_idx = 0
+            ckpt_region = []
+            if isinstance(op, ForwardCheck):
+                ckpt_region.append(op.index)
 
     # postprocess, make sure every activation checkpoint label in the
     # same activation checkpoint region (level = 0) has the same length
@@ -529,7 +527,7 @@ def solver_pofo(gm: ColoGraphModule,
     solver = PofoSolver(chain, mem_limit, bandwidth, mem_slots)
     first_state = (0, 0, 0, 0, False)
     sequence = solver.pofo_rec(first_state)
-    if sequence == None:
+    if sequence is None:
         raise ValueError(f"Cannot solve sequence with {mem_limit} Bytes memory")
 
     _annotate_from_pofo_sequence(sequence, node_list)

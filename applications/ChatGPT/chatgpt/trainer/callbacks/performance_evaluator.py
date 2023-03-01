@@ -9,9 +9,7 @@ from .base import Callback
 
 
 def get_world_size() -> int:
-    if dist.is_initialized():
-        return dist.get_world_size()
-    return 1
+    return dist.get_world_size() if dist.is_initialized() else 1
 
 
 def print_rank_0(*args, **kwargs) -> None:

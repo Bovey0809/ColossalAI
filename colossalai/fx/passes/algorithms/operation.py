@@ -86,10 +86,7 @@ class Forward(Operation):
         return "{n}_{i}".format(n=self.name, i=self.index)
 
     def cost(self, chain: Chain):
-        if chain is not None:
-            return chain.fweight[self.index]
-        else:
-            return 1
+        return chain.fweight[self.index] if chain is not None else 1
 
 
 class ForwardEnable(Forward):
@@ -141,10 +138,7 @@ class Backward(Operation):
         return "B_{i}".format(i=self.index)
 
     def cost(self, chain: Chain):
-        if chain is not None:
-            return chain.bweight[self.index]
-        else:
-            return 1
+        return chain.bweight[self.index] if chain is not None else 1
 
 
 class Loss(Operation):
@@ -237,9 +231,8 @@ class Sequence:
         return self
 
     def remove_useless_write(self):
-        if self.sequence:
-            if isinstance(self.sequence[0], WriteMemory):
-                self.remove(0)
+        if self.sequence and isinstance(self.sequence[0], WriteMemory):
+            self.remove(0)
         return self
 
     def get_makespan(self, chain):
@@ -249,7 +242,11 @@ class Sequence:
         ops = self.list_operations()
         end_of_first_phase = [i for i in range(len(ops)) if type(ops[i]) is Loss][0]
         try:
-            last_idx = max(i for i in range(end_of_first_phase) if not type(ops[i]) is ForwardEnable)
+            last_idx = max(
+                i
+                for i in range(end_of_first_phase)
+                if type(ops[i]) is not ForwardEnable
+            )
         except ValueError:
             last_idx = -1
         if last_idx == end_of_first_phase - 1:

@@ -48,10 +48,11 @@ def convert_to_naive_amp(model: nn.Module, optimizer: Optimizer, amp_config):
         scaler_class = ConstantGradScaler
 
     sig = inspect.signature(scaler_class.__init__)
-    kwargs = dict()
-    for param in sig.parameters.values():
-        if param.name in amp_config:
-            kwargs[param.name] = amp_config.pop(param.name)
+    kwargs = {
+        param.name: amp_config.pop(param.name)
+        for param in sig.parameters.values()
+        if param.name in amp_config
+    }
     grad_scaler = scaler_class(**kwargs)
     optimizer = NaiveAMPOptimizer(optimizer, grad_scaler, **amp_config)
     return model, optimizer

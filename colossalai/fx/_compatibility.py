@@ -22,15 +22,12 @@ def compatibility(is_backward_compatible: bool = False) -> Callable:
     def decorator(func):
         if META_COMPATIBILITY:
             return func
-        else:
-            if is_backward_compatible:
-                return func
-            else:
+        if is_backward_compatible:
+            return func
+        def wrapper(*args, **kwargs):
+            raise RuntimeError(f'Function `{func.__name__}` is not compatible with PyTorch {torch.__version__}')
 
-                def wrapper(*args, **kwargs):
-                    raise RuntimeError(f'Function `{func.__name__}` is not compatible with PyTorch {torch.__version__}')
-
-                return wrapper
+        return wrapper
 
     return decorator
 

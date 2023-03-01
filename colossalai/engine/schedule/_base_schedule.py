@@ -27,9 +27,8 @@ class BaseSchedule(ABC):
 
     @staticmethod
     def _move_tensor(element):
-        if torch.is_tensor(element):
-            if not element.is_cuda:
-                return element.to(get_current_device()).detach()
+        if torch.is_tensor(element) and not element.is_cuda:
+            return element.to(get_current_device()).detach()
         return element
 
     def _move_to_device(self, data):

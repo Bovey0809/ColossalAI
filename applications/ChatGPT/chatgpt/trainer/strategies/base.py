@@ -84,9 +84,7 @@ class Strategy(ABC):
             else:
                 raise RuntimeError(f'Expect model or (model, optimizer) pair, got {type(arg)}')
 
-        if len(rets) == 1:
-            return rets[0]
-        return rets
+        return rets[0] if len(rets) == 1 else rets
 
     @staticmethod
     def _unwrap_model(model: nn.Module) -> nn.Module:
@@ -95,9 +93,7 @@ class Strategy(ABC):
         Args:
             model (nn.Module): an actor or a critic
         """
-        if isinstance(model, Actor):
-            return model.model
-        return model
+        return model.model if isinstance(model, Actor) else model
 
     @staticmethod
     def _unwrap_actor(actor: Actor) -> nn.Module:

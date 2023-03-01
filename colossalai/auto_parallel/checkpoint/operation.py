@@ -81,10 +81,7 @@ class Forward(Operation):
         self.index = index
 
     def cost(self, chain: Chain):
-        if chain is not None:
-            return chain.ftime[self.index]
-        else:
-            return 1
+        return chain.ftime[self.index] if chain is not None else 1
 
 
 class ForwardEnable(Forward):
@@ -125,10 +122,7 @@ class Backward(Operation):
         self.index = index
 
     def cost(self, chain: Chain):
-        if chain is not None:
-            return chain.btime[self.index]
-        else:
-            return 1
+        return chain.btime[self.index] if chain is not None else 1
 
 
 class Loss(Operation):

@@ -107,5 +107,4 @@ class BinaryElementwiseStrategyGenerator(StrategyGenerator):
         return strategy_list
 
     def collate_strategies(self) -> List[ShardingStrategy]:
-        strategy_list = self.enumerate_all_possible_output(0, 1)
-        return strategy_list
+        return self.enumerate_all_possible_output(0, 1)

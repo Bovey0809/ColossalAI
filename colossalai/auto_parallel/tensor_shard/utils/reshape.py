@@ -161,7 +161,7 @@ def check_keep_sharding_status(input_dim_partition_dict: Dict[int, List[int]],
         True
     """
     sharded_dims = list(input_dim_partition_dict.keys())
-    for input_dims in reshape_mapping_dict.keys():
+    for input_dims in reshape_mapping_dict:
         # if input_dims has no element, we could just skip this iteration.
         if len(input_dims) == 0:
             continue

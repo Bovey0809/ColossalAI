@@ -19,9 +19,11 @@ class TransposeHandler(NodeHandler):
 
     def get_strategy_generator(self) -> List[StrategyGenerator]:
         op_data_mapping = self.get_operation_data_mapping()
-        generators = []
-        generators.append(TransposeGenerator(op_data_mapping, self.device_mesh, self.node.args[0]))
-        return generators
+        return [
+            TransposeGenerator(
+                op_data_mapping, self.device_mesh, self.node.args[0]
+            )
+        ]
 
     def get_operation_data_mapping(self) -> Dict[str, OperationData]:
         # check if the input operand is a parameter
@@ -55,10 +57,8 @@ class TransposeHandler(NodeHandler):
         output_data = self.node._meta_data
         physical_output_operand = OperationData(name=str(self.node), type=OperationDataType.OUTPUT, data=output_data)
 
-        mapping = {
+        return {
             "input": physical_input_operand,
             "transpose_dims": physical_shape_operand,
-            "output": physical_output_operand
+            "output": physical_output_operand,
         }
-
-        return mapping

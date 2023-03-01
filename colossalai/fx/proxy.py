@@ -64,12 +64,7 @@ class ColoProxy(Proxy):
         return ColoAttribute(self, k)
 
     def __contains__(self, key):
-        if self.node.op == "placeholder":
-            # this is used to handle like
-            # if x in kwargs
-            # we don't handle this case for now
-            return False
-        return super().__contains__(key)
+        return False if self.node.op == "placeholder" else super().__contains__(key)
 
 
 def extract_meta(*args, **kwargs):

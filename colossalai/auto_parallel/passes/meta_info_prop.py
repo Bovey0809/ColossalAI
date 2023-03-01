@@ -14,9 +14,7 @@ from colossalai.fx.profiler import GraphInfo
 
 
 def _normalize_tuple(x):
-    if not isinstance(x, tuple):
-        return (x,)
-    return x
+    return x if isinstance(x, tuple) else (x, )
 
 
 @compatibility(is_backward_compatible=False)
@@ -37,10 +35,9 @@ class MetaInfoProp:
         """
         Set uuid to tensor
         """
-        if isinstance(x, torch.Tensor):
-            if not x.data_ptr():
-                data_ptr = uuid.uuid4()
-                x.data_ptr = lambda: data_ptr
+        if isinstance(x, torch.Tensor) and not x.data_ptr():
+            data_ptr = uuid.uuid4()
+            x.data_ptr = lambda: data_ptr
 
     def _is_inplace(self, node: Node):
         """

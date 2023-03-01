@@ -95,17 +95,12 @@ def _convert_logical_sharding_to_physical_sharding_spec_for_linear(strategy: Sha
             input_sharding_spec = strategy_copy.get_sharding_spec_by_name(input_op_data.name)
             output_sharding_spec = strategy_copy.get_sharding_spec_by_name(output_op_data.name)
             try:
-                # replace the 0th dimension in the logical sharding with ith dimension in the physical sharding
-                input_dim_mapping = {0: i}
-                input_dim_mapping.update(input_last_dim_mapping)
-
+                input_dim_mapping = {0: i} | input_last_dim_mapping
                 update_partition_dim(sharding_spec=input_sharding_spec,
                                      dim_mapping=input_dim_mapping,
                                      physical_shape=input_op_data.data.shape,
                                      inplace=True)
-                output_dim_mapping = {0: i}
-                output_dim_mapping.update(output_last_dim_mapping)
-
+                output_dim_mapping = {0: i} | output_last_dim_mapping
                 update_partition_dim(sharding_spec=output_sharding_spec,
                                      dim_mapping=output_dim_mapping,
                                      physical_shape=output_op_data.data.shape,
@@ -124,16 +119,13 @@ def _convert_logical_sharding_to_physical_sharding_spec_for_linear(strategy: Sha
         input_sharding_spec = strategy_copy.get_sharding_spec_by_name(input_op_data.name)
         output_sharding_spec = strategy_copy.get_sharding_spec_by_name(output_op_data.name)
 
-        # after updating, the logical shape will be replaced by the physical shape
-        input_dim_mapping = {}
-        input_dim_mapping.update(input_last_dim_mapping)
+        input_dim_mapping = dict(input_last_dim_mapping)
         update_partition_dim(sharding_spec=input_sharding_spec,
                              dim_mapping=input_dim_mapping,
                              physical_shape=input_op_data.data.shape,
                              inplace=True)
 
-        output_dim_mapping = {}
-        output_dim_mapping.update(output_last_dim_mapping)
+        output_dim_mapping = {} | output_last_dim_mapping
         update_partition_dim(sharding_spec=output_sharding_spec,
                              dim_mapping=output_dim_mapping,
                              physical_shape=output_op_data.data.shape,
@@ -150,13 +142,14 @@ class LinearModuleHandler(MetaInfoModuleHandler):
 
     def get_strategy_generator(self) -> List[StrategyGenerator]:
         op_data_mapping = self.get_operation_data_mapping()
-        generators = []
-        generators.append(
-            LinearProjectionStrategyGenerator(op_data_mapping,
-                                              self.device_mesh,
-                                              linear_projection_type='linear',
-                                              solver_perference=self.solver_perference))
-        return generators
+        return [
+            LinearProjectionStrategyGenerator(
+                op_data_mapping,
+                self.device_mesh,
+                linear_projection_type='linear',
+                solver_perference=self.solver_perference,
+            )
+        ]
 
     def get_operation_data_mapping(self) -> Dict[str, OperationData]:
         # use transposed shape for strategies
@@ -196,13 +189,11 @@ class LinearModuleHandler(MetaInfoModuleHandler):
         # switch the dimensions of the transposed weight
         strategy = _update_sharding_spec_for_transposed_weight_for_linear(strategy=strategy, weight_name='weight')
 
-        # create multiple sharding strategies for the inputs
-        # as input can be multi-dimensinal and the partition dim is only 2D,
-        # we need to map the partition at dim 0 to one of the first few dimensions of the input
-        strategies = _convert_logical_sharding_to_physical_sharding_spec_for_linear(strategy=strategy,
-                                                                                    input_name=str(self.node.args[0]),
-                                                                                    output_name=str(self.node))
-        return strategies
+        return _convert_logical_sharding_to_physical_sharding_spec_for_linear(
+            strategy=strategy,
+            input_name=str(self.node.args[0]),
+            output_name=str(self.node),
+        )
 
 
 @operator_registry.register(F.linear)
@@ -213,10 +204,11 @@ class LinearFunctionHandler(MetaInfoNodeHandler):
 
     def get_strategy_generator(self) -> List[StrategyGenerator]:
         op_data_mapping = self.get_operation_data_mapping()
-        generators = []
-        generators.append(
-            LinearProjectionStrategyGenerator(op_data_mapping, self.device_mesh, linear_projection_type='linear'))
-        return generators
+        return [
+            LinearProjectionStrategyGenerator(
+                op_data_mapping, self.device_mesh, linear_projection_type='linear'
+            )
+        ]
 
     def get_operation_data_mapping(self) -> Dict[str, OperationData]:
         # use transposed shape for strategies
@@ -266,10 +258,8 @@ class LinearFunctionHandler(MetaInfoNodeHandler):
         # switch the dimensions of the transposed weight
         strategy = _update_sharding_spec_for_transposed_weight_for_linear(strategy=strategy,
                                                                           weight_name=str(self.node.args[1]))
-        # create multiple sharding strategies for the inputs
-        # as input can be multi-dimensinal and the partition dim is only 2D,
-        # we need to map the partition at dim 0 to one of the first few dimensions of the input
-        strategies = _convert_logical_sharding_to_physical_sharding_spec_for_linear(strategy=strategy,
-                                                                                    input_name=str(self.node.args[0]),
-                                                                                    output_name=str(self.node))
-        return strategies
+        return _convert_logical_sharding_to_physical_sharding_spec_for_linear(
+            strategy=strategy,
+            input_name=str(self.node.args[0]),
+            output_name=str(self.node),
+        )

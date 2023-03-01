@@ -52,9 +52,9 @@ def torch_max(input: torch.Tensor,
     assert out is None, 'assigning value to out is not supported yet'
     if dim is not None:
         shape = list(input.shape)
-        shape.pop(int(dim))
+        shape.pop(dim)
         flops = reduce(operator.mul, shape), macs
-        return flops, macs
     else:
         flops = input.numel()
-        return flops, macs
+
+    return flops, macs

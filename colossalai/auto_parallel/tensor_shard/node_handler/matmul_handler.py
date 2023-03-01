@@ -53,7 +53,7 @@ def get_matmul_type(input_dim: int, other_dim: int):
     """
     if input_dim == 1 and other_dim == 1:
         matmul_type = MatMulType.DOT
-    elif input_dim in [1, 2] and other_dim == 2:
+    elif input_dim in {1, 2} and other_dim == 2:
         matmul_type = MatMulType.MM
     elif input_dim == 2 and other_dim == 1:
         matmul_type = MatMulType.MV
@@ -375,8 +375,7 @@ class MatMulHandler(MetaInfoNodeHandler):
             MatMulType.BMM: self._get_logical_shape_for_bmm
         }
         logical_shapes = logical_shape_func[self.matmul_type]()
-        op_data_mapping = self._get_op_data_mapping(*logical_shapes)
-        return op_data_mapping
+        return self._get_op_data_mapping(*logical_shapes)
 
     def _get_op_data_mapping(self, input_logical_shape, other_logical_shape, output_logical_shape):
         # convert list to torch.Size
@@ -403,8 +402,11 @@ class MatMulHandler(MetaInfoNodeHandler):
                                        data=self.output_meta_data,
                                        logical_shape=output_logical_shape)
 
-        mapping = {'input': input_op_data, 'other': other_op_data, 'output': output_op_data}
-        return mapping
+        return {
+            'input': input_op_data,
+            'other': other_op_data,
+            'output': output_op_data,
+        }
 
     def _get_logical_shape_for_dot(self):
         """
@@ -463,9 +465,7 @@ class MatMulHandler(MetaInfoNodeHandler):
                 input_sharding_spec.__init__(input_sharding_spec.device_mesh,
                                              entire_shape=input_physical_shape,
                                              dim_partition_dict=dim_partition_dict)
-                return strategy
-            else:
-                return strategy
+            return strategy
         elif self.matmul_type == MatMulType.BMM:
             op_data_mapping = self.get_operation_data_mapping()
 

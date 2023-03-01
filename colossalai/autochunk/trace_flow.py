@@ -60,9 +60,7 @@ class TraceFlow(object):
         """
         end_node_trace = self.trace_indice._find_trace_from_node(end_node)
         end_node_compute = end_node_trace["compute"][end_dim]
-        if any(start_idx <= i <= end_idx for i in end_node_compute):
-            return False
-        return True
+        return not any(start_idx <= i <= end_idx for i in end_node_compute)
 
     def _assgin_single_node_flow(
         self,
@@ -125,11 +123,14 @@ class TraceFlow(object):
                 # chunk dim should be None if shape size is 1
                 if get_node_shape(arg_node)[arg_dim] == 1:
                     arg_dim = None
-                # chunk shape should equal cur node
                 elif get_node_shape(arg_node)[arg_dim] != 1:
-                    if cur_node_dim is not None and get_node_shape(cur_node)[cur_node_dim] != 1:
-                        if get_node_shape(arg_node)[arg_dim] != get_node_shape(cur_node)[cur_node_dim]:
-                            return False
+                    if (
+                        cur_node_dim is not None
+                        and get_node_shape(cur_node)[cur_node_dim] != 1
+                        and get_node_shape(arg_node)[arg_dim]
+                        != get_node_shape(cur_node)[cur_node_dim]
+                    ):
+                        return False
         else:
             arg_dim = None
 
@@ -154,7 +155,7 @@ class TraceFlow(object):
         cur_node_list = [self.node_mgr.get_node_by_idx(end_idx)]    # start from the last node
         all_node_info = {cur_node_list[0]: {"chunk_dim": end_dim, "fix_dim": []}}
 
-        while len(cur_node_list) > 0:
+        while cur_node_list:
             next_node_list = []
 
             for cur_node in cur_node_list:
@@ -226,14 +227,13 @@ class TraceFlow(object):
                     chunk_dim = all_node_info[user]["chunk_dim"]
                     if chunk_dim is not None:
                         user_source = self.trace_indice._find_source_trace_from_node(user)[chunk_dim]
-                        if input_node_idx in user_source:
-                            if get_node_shape(input_node)[user_source[input_node_idx][0]] == 1:
-                                input_dict[user_idx] = [None]
-                            else:
-                                input_dict[user_idx] = user_source[input_node_idx]
-                        else:
+                        if input_node_idx not in user_source:
                             return None, None
-            if len(input_dict) == 0:
+                        if get_node_shape(input_node)[user_source[input_node_idx][0]] == 1:
+                            input_dict[user_idx] = [None]
+                        else:
+                            input_dict[user_idx] = user_source[input_node_idx]
+            if not input_dict:
                 remove_inputs.append(input_node)
             else:
                 inputs_dim.append(input_dict)
@@ -255,11 +255,11 @@ class TraceFlow(object):
         Returns:
             List[Node]: all nodes to be preposed
         """
-        # get all possible prepose nodes
-        maybe_prepose_nodes = []
-        for node, node_info in all_node_info.items():
-            if node_info["chunk_dim"] is None:
-                maybe_prepose_nodes.append(node)
+        maybe_prepose_nodes = [
+            node
+            for node, node_info in all_node_info.items()
+            if node_info["chunk_dim"] is None
+        ]
         for node in self.node_mgr.get_node_slice_by_idx(start_idx, end_idx):
             if node not in all_node_info and node not in chunk_info["outputs"]:
                 maybe_prepose_nodes.append(node)
@@ -269,15 +269,13 @@ class TraceFlow(object):
         )    # from last node to first node
         prepose_nodes = []
         # set every node as root, search its args, if all legal, turn root and args as prepose nodes
-        while len(maybe_prepose_nodes) > 0:
+        while maybe_prepose_nodes:
             tmp_cur_prepose_nodes = [maybe_prepose_nodes[0]]
             tmp_cur_related_prepose_nodes = []
             prepose_flag = True
 
             # loop cur node's all arg until out of chunk
-            while len(tmp_cur_prepose_nodes) > 0:
-                if prepose_flag == False:
-                    break
+            while tmp_cur_prepose_nodes and prepose_flag:
                 tmp_next_prepose_nodes = []
                 tmp_cur_related_prepose_nodes.extend(tmp_cur_prepose_nodes)
                 for cur_prepose_node in tmp_cur_prepose_nodes:
@@ -437,7 +435,7 @@ class TraceFlow(object):
         reshape_size = {}
         chunk_shape = get_node_shape(chunk_info["outputs"][0])[chunk_info["outputs_dim"][0]]
         for node in self.node_mgr.get_node_slice_by_idx(chunk_region[0], chunk_region[1] + 1):
-            if any(i == get_node_name(node) for i in ["reshape", "view"]):
+            if get_node_name(node) in ["reshape", "view"]:
                 if node in chunk_info["args"]["prepose_nodes"]:
                     continue
                 if node.args[0] in chunk_info["inputs_non_chunk"]:
@@ -451,11 +449,10 @@ class TraceFlow(object):
                 for reshape_arg_dim, reshape_arg in enumerate(reshape_args):
                     if reshape_arg_dim == chunk_dim:
                         new_shape += "min(chunk_size, %d - chunk_idx), " % chunk_shape
+                    elif isinstance(reshape_arg, int):
+                        new_shape += f"{str(reshape_arg)}, "
                     else:
-                        if isinstance(reshape_arg, int):
-                            new_shape += "%s, " % str(reshape_arg)
-                        else:
-                            new_shape += "%s, " % reshape_arg.name
+                        new_shape += f"{reshape_arg.name}, "
                 new_shape = new_shape[:-2]
                 origin_shape = str(reshape_args)[1:-1]
                 reshape_size[node.name] = [origin_shape, new_shape]
@@ -477,9 +474,10 @@ class TraceFlow(object):
         if len(end_node.users) == 0:
             return False
         # check index source align
-        if not self.check_index_source(start_dim, start_node, start_idx, end_dim, end_node):
-            return False
-        # check index copmute
-        if not self.check_index_compute(start_idx, end_dim, end_node, end_idx):
-            return False
-        return True
+        return (
+            bool(self.check_index_compute(start_idx, end_dim, end_node, end_idx))
+            if self.check_index_source(
+                start_dim, start_node, start_idx, end_dim, end_node
+            )
+            else False
+        )

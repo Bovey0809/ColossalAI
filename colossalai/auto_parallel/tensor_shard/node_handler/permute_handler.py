@@ -19,9 +19,7 @@ class PermuteHandler(NodeHandler):
 
     def get_strategy_generator(self) -> List[StrategyGenerator]:
         op_data_mapping = self.get_operation_data_mapping()
-        generators = []
-        generators.append(PermuteGenerator(op_data_mapping, self.device_mesh, self.node.args[0]))
-        return generators
+        return [PermuteGenerator(op_data_mapping, self.device_mesh, self.node.args[0])]
 
     def get_operation_data_mapping(self) -> Dict[str, OperationData]:
         # check if the input operand is a parameter
@@ -34,26 +32,22 @@ class PermuteHandler(NodeHandler):
         physical_input_operand = OperationData(name=str(self.node.args[0]), type=data_type, data=input_data)
 
         permute_dims = []
-        if self.node.op == 'call_method':
-            # torch.Tensor.permute (input, *dims)
-            for arg in self.node.args:
+        for arg in self.node.args:
+            if self.node.op == 'call_method':
                 if isinstance(arg, torch.fx.Node):
                     if isinstance(arg._meta_data, int):
                         permute_dims.append(arg._meta_data)
                 else:
                     assert isinstance(arg, int), 'The argument in permute node should be either type of Node or int.'
                     permute_dims.append(arg)
-        else:
-            # torch.permute (input, dims)
-            for arg in self.node.args:
-                if isinstance(arg, torch.fx.Node):
-                    if isinstance(arg._meta_data, (tuple, list)):
-                        permute_dims.extend(arg._meta_data)
-                else:
-                    assert isinstance(
-                        arg,
-                        (tuple, list)), 'The argument in permute node should be type of Node, Tuple[int] or List[int].'
-                    permute_dims.extend(arg)
+            elif isinstance(arg, torch.fx.Node):
+                if isinstance(arg._meta_data, (tuple, list)):
+                    permute_dims.extend(arg._meta_data)
+            else:
+                assert isinstance(
+                    arg,
+                    (tuple, list)), 'The argument in permute node should be type of Node, Tuple[int] or List[int].'
+                permute_dims.extend(arg)
 
         num_dims = self.node._meta_data.dim()
         for i in range(num_dims):
@@ -66,10 +60,8 @@ class PermuteHandler(NodeHandler):
         output_data = self.node._meta_data
         physical_output_operand = OperationData(name=str(self.node), type=OperationDataType.OUTPUT, data=output_data)
 
-        mapping = {
+        return {
             "input": physical_input_operand,
             "permute_dims": physical_shape_operand,
-            "output": physical_output_operand
+            "output": physical_output_operand,
         }
-
-        return mapping

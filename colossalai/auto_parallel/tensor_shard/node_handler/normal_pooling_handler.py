@@ -23,9 +23,7 @@ class NormPoolingHandler(MetaInfoModuleHandler):
 
     def get_strategy_generator(self) -> List[StrategyGenerator]:
         op_data_mapping = self.get_operation_data_mapping()
-        generators = []
-        generators.append(NormalPoolStrategyGenerator(op_data_mapping, self.device_mesh))
-        return generators
+        return [NormalPoolStrategyGenerator(op_data_mapping, self.device_mesh)]
 
     def get_operation_data_mapping(self) -> Dict[str, OperationData]:
         # use transposed shape for strategies
@@ -36,6 +34,8 @@ class NormPoolingHandler(MetaInfoModuleHandler):
         physical_weight_operand = OperationData(name="kernel", type=OperationDataType.ARG, data=self.module.kernel_size)
         physical_output = OperationData(name=str(self.node), type=OperationDataType.OUTPUT, data=self.node._meta_data)
 
-        mapping = {"input": physical_input_operand, "other": physical_weight_operand, "output": physical_output}
-
-        return mapping
+        return {
+            "input": physical_input_operand,
+            "other": physical_weight_operand,
+            "output": physical_output,
+        }

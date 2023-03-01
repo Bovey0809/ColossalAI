@@ -78,11 +78,11 @@ def _gen_save_tensors_hooks_context(offload_input=True) -> str:
         str: generated context
     """
 
-    if offload_input:
-        context = "with torch.autograd.graph.saved_tensors_hooks(self.pack_hook_input, self.unpack_hook):\n"
-    else:
-        context = "with torch.autograd.graph.saved_tensors_hooks(self.pack_hook_no_input, self.unpack_hook):\n"
-    return context
+    return (
+        "with torch.autograd.graph.saved_tensors_hooks(self.pack_hook_input, self.unpack_hook):\n"
+        if offload_input
+        else "with torch.autograd.graph.saved_tensors_hooks(self.pack_hook_no_input, self.unpack_hook):\n"
+    )
 
 
 def _gen_save_on_cpu_context():
@@ -90,8 +90,7 @@ def _gen_save_on_cpu_context():
     Generate save on cpu context
     """
 
-    context = "with torch.autograd.graph.save_on_cpu(pin_memory=True):\n"
-    return context
+    return "with torch.autograd.graph.save_on_cpu(pin_memory=True):\n"
 
 
 def _find_input_and_output_nodes(nodes: List[Node]):
@@ -150,7 +149,7 @@ def _find_ckpt_regions(nodes: List[Node]):
                 current_region = act_ckpt_label
                 start = idx
                 end = -1
-        elif current_region is not None and not 'activation_checkpoint' in node.meta:
+        elif current_region is not None:
             # used to check the case below
             # node ckpt states = [ckpt, ckpt, non-ckpt]
             end = idx - 1
@@ -158,8 +157,6 @@ def _find_ckpt_regions(nodes: List[Node]):
             ckpt_regions.append((start, end))
             start = end = -1
             current_region = None
-        else:
-            pass
     return ckpt_regions
 
 
@@ -181,11 +178,10 @@ def _find_offload_regions(nodes: List[Node]):
         if 'activation_offload' in node.meta and isinstance(node.meta['activation_offload'], Iterable):
             act_offload_label = node.meta['activation_offload']
 
-            if current_region == None:
-                current_region = act_offload_label
+            if current_region is None:
                 start = idx
-                offload_labels.append(act_offload_label)
-
+                current_region = act_offload_label
+                offload_labels.append(current_region)
             if act_offload_label != current_region:
                 assert start != -1
                 offload_regions.append((start, idx - 1))
@@ -194,16 +190,12 @@ def _find_offload_regions(nodes: List[Node]):
                 start = idx
                 end = -1
 
-        else:
-            if current_region is not None:
-                end = idx - 1
-                assert start != -1 and end != -1
-                offload_regions.append((start, end))
-                start = end = -1
-                current_region = None
-
-            else:
-                pass
+        elif current_region is not None:
+            end = idx - 1
+            assert start != -1 and end != -1
+            offload_regions.append((start, end))
+            start = end = -1
+            current_region = None
 
     return offload_regions, offload_labels
 
@@ -240,13 +232,12 @@ def _end_of_ckpt(node: Node, check_idx: int) -> bool:
     Returns:
         bool
     """
-    if 'activation_checkpoint' in node.meta:
-        if isinstance(node.meta['activation_checkpoint'], list):
-            return node.meta['activation_checkpoint'][check_idx] == None
-        else:
-            return False
-    else:
+    if 'activation_checkpoint' not in node.meta:
         return True
+    if isinstance(node.meta['activation_checkpoint'], list):
+        return node.meta['activation_checkpoint'][check_idx] is None
+    else:
+        return False
 
 
 def _find_nested_ckpt_regions(nodes, check_idx=0):
@@ -289,9 +280,6 @@ def _find_nested_ckpt_regions(nodes, check_idx=0):
             ckpt_regions.append((start, end))
             start = end = -1
             current_region = None
-        else:
-            pass
-
     if current_region is not None:
         end = len(nodes) - 1
         ckpt_regions.append((start, end))
@@ -327,16 +315,13 @@ def emit_ckpt_func(body,
         ckpt_func.append(f'{ckpt_fn_def}\n')
         for node in node_list:
             emit_node_func(node, ckpt_func)
-            ckpt_func[-1] = '    ' + ckpt_func[-1]
+            ckpt_func[-1] = f'    {ckpt_func[-1]}'
             delete_unused_value_func(node, ckpt_func)
 
-        ckpt_func.append('    ' + _gen_ckpt_output(outputs) + '\n\n')
+        ckpt_func.append(f'    {_gen_ckpt_output(outputs)}' + '\n\n')
         activation_offload = node_list[0].meta.get('activation_offload', False)
         usage = _gen_ckpt_usage(label, activation_offload, inputs, outputs, False)
         usage += "\n"
-        body.append(usage)
-
-    # use nested ckpt function codegen
     else:
         # label given by each layer, e.g. if you are currently at level [0, 1, 1]
         # the label will be '0_1_1'
@@ -353,10 +338,7 @@ def emit_ckpt_func(body,
             # use ckpt_func_buffer to store nested checkpoint functions
             ckpt_func_buffer = []
             node_idx = 0
-            while 1:
-                if node_idx >= len(node_list):
-                    break
-
+            while 1 and node_idx < len(node_list):
                 if node_idx in start_idx:
                     ckpt_node_list = node_list[node_idx:end_idx[start_idx.index(node_idx)] + 1]
                     emit_ckpt_func(ckpt_func, ckpt_func_buffer, ckpt_node_list, emit_node_func,
@@ -366,31 +348,25 @@ def emit_ckpt_func(body,
                 else:
                     node = node_list[node_idx]
                     emit_node_func(node, ckpt_func)
-                    ckpt_func[-1] = '    ' + ckpt_func[-1]
+                    ckpt_func[-1] = f'    {ckpt_func[-1]}'
                     delete_unused_value_func(node, ckpt_func)
                     node_idx += 1
 
-            ckpt_func.append('    ' + _gen_ckpt_output(outputs) + '\n\n')
+            ckpt_func.append(f'    {_gen_ckpt_output(outputs)}' + '\n\n')
             ckpt_func += ckpt_func_buffer
-            activation_offload = node_list[0].meta.get('activation_offload', False)
-            usage = _gen_ckpt_usage(label, activation_offload, inputs, outputs, False) + '\n'
-            if in_ckpt:
-                usage = '    ' + usage
-            body.append(usage)
-
-        # last level
         else:
             for node in node_list:
                 emit_node_func(node, ckpt_func)
-                ckpt_func[-1] = '    ' + ckpt_func[-1]
+                ckpt_func[-1] = f'    {ckpt_func[-1]}'
                 delete_unused_value_func(node, ckpt_func)
 
-            ckpt_func.append('    ' + _gen_ckpt_output(outputs) + '\n\n')
-            activation_offload = node_list[0].meta.get('activation_offload', False)
-            usage = _gen_ckpt_usage(label, activation_offload, inputs, outputs, False) + '\n'
-            if in_ckpt:
-                usage = '    ' + usage
-            body.append(usage)
+            ckpt_func.append(f'    {_gen_ckpt_output(outputs)}' + '\n\n')
+
+        activation_offload = node_list[0].meta.get('activation_offload', False)
+        usage = _gen_ckpt_usage(label, activation_offload, inputs, outputs, False) + '\n'
+        if in_ckpt:
+            usage = f'    {usage}'
+    body.append(usage)
 
 
 def emit_code_with_nested_activation_checkpoint(body, ckpt_func, nodes, emit_node_func, delete_unused_value_func):
@@ -419,7 +395,7 @@ def emit_code_with_nested_activation_checkpoint(body, ckpt_func, nodes, emit_nod
     node_list = list(nodes)
 
     # find the input and output var names for each offload region
-    for idx, (start, end) in enumerate(offload_regions):
+    for start, end in offload_regions:
         offload_node_list = node_list[start:end + 1]
         inputs, outputs = _find_input_and_output_nodes(offload_node_list)
         offload_inputs.append(inputs)
@@ -429,18 +405,13 @@ def emit_code_with_nested_activation_checkpoint(body, ckpt_func, nodes, emit_nod
     # hooks definition in ckpt_func
     is_hook_inserted = False
     node_idx = 0
-    while 1:
-        # break if we finish the processing all the nodes
-        if node_idx >= len(node_list):
-            break
-
+    while 1 and node_idx < len(node_list):
         # process ckpt_regions
         if node_idx in start_idx:
             ckpt_node_list = node_list[node_idx:end_idx[start_idx.index(node_idx)] + 1]
             emit_ckpt_func(body, ckpt_func, ckpt_node_list, emit_node_func, delete_unused_value_func)
             node_idx += len(ckpt_node_list)
 
-        # process node in forward function
         else:
             node = node_list[node_idx]
 
@@ -468,14 +439,10 @@ def emit_code_with_nested_activation_checkpoint(body, ckpt_func, nodes, emit_nod
                         body.append(f"setattr({par}, 'offload', False)\n")
                     body.append(_gen_save_tensors_hooks_context(offload_input=False))
 
+            emit_node_func(node, body)
             if within_offload_region:
-                emit_node_func(node, body)
-                body[-1] = '    ' + body[-1]
-                delete_unused_value_func(node, body)
-
-            else:
-                emit_node_func(node, body)
-                delete_unused_value_func(node, body)
+                body[-1] = f'    {body[-1]}'
+            delete_unused_value_func(node, body)
 
             if node_idx in offload_ends:
                 within_offload_region = False
@@ -507,14 +474,14 @@ def emit_code_with_activation_checkpoint(body, ckpt_func, nodes, emit_node_func,
     is_hook_inserted = False
 
     # find the input and output var names for each region
-    for idx, (start, end) in enumerate(ckpt_regions):
+    for start, end in ckpt_regions:
         ckpt_node_list = node_list[start:end + 1]
         inputs, outputs = _find_input_and_output_nodes(ckpt_node_list)
         input_vars.append(inputs)
         output_vars.append(outputs)
 
     # find the input and output var names for each offload region
-    for idx, (start, end) in enumerate(offload_regions):
+    for start, end in offload_regions:
         offload_node_list = node_list[start:end + 1]
         inputs, outputs = _find_input_and_output_nodes(offload_node_list)
         offload_inputs.append(inputs)
@@ -559,12 +526,12 @@ def emit_code_with_activation_checkpoint(body, ckpt_func, nodes, emit_node_func,
         # NOTE: currently we separate body and ckpt_func definition
         if within_ckpt_region:
             emit_node_func(node, ckpt_func)
-            ckpt_func[-1] = '    ' + ckpt_func[-1]
+            ckpt_func[-1] = f'    {ckpt_func[-1]}'
             delete_unused_value_func(node, ckpt_func)
 
         elif within_offload_region:
             emit_node_func(node, body)
-            body[-1] = '    ' + body[-1]
+            body[-1] = f'    {body[-1]}'
             delete_unused_value_func(node, body)
 
         else:
@@ -594,15 +561,26 @@ def emit_code_with_activation_checkpoint(body, ckpt_func, nodes, emit_node_func,
                 if input_node.op != "placeholder":
                     non_leaf_input = 1
                 for user in input_node.users:
-                    if 'activation_checkpoint' in user.meta:
-                        if user.meta['activation_checkpoint'] == label:
-                            if user.op == "call_module":
-                                if hasattr(user.graph.owning_module.get_submodule(user.target), "inplace"):
-                                    use_reentrant = not user.graph.owning_module.get_submodule(user.target).inplace
+                    if user.op == "call_module":
+                        if (
+                            'activation_checkpoint' in user.meta
+                            and user.meta['activation_checkpoint'] == label
+                            and hasattr(
+                                user.graph.owning_module.get_submodule(
+                                    user.target
+                                ),
+                                "inplace",
+                            )
+                        ):
+                            use_reentrant = not user.graph.owning_module.get_submodule(user.target).inplace
 
-                            elif user.op == "call_function":
-                                if "inplace" in user.kwargs:
-                                    use_reentrant = not user.kwargs["inplace"]
+                    elif user.op == "call_function":
+                        if (
+                            'activation_checkpoint' in user.meta
+                            and user.meta['activation_checkpoint'] == label
+                            and "inplace" in user.kwargs
+                        ):
+                            use_reentrant = not user.kwargs["inplace"]
 
             # if all the inputs are leaf nodes, we need to set use_reentrant = False
             if not non_leaf_input:

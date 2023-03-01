@@ -73,20 +73,12 @@ class Engine:
         self.training = True    # default
 
         # build gradient handler
-        if gradient_handlers:
-            self._gradient_handlers = gradient_handlers
-        else:
-            self._gradient_handlers = []
-
-        if ophook_list is None:
-            self._ophook_list = []
-        else:
-            self._ophook_list = ophook_list
-
+        self._gradient_handlers = gradient_handlers or []
+        self._ophook_list = [] if ophook_list is None else ophook_list
         # build schedule
         if schedule:
             assert isinstance(schedule, BaseSchedule), \
-                f'expected schedule to be of type BaseSchedule, but got {type(schedule)}'
+                    f'expected schedule to be of type BaseSchedule, but got {type(schedule)}'
             self._schedule = schedule
         else:
             self._schedule = NonPipelineSchedule()
@@ -140,7 +132,7 @@ class Engine:
     def remove_hook(self, ophook: Type[BaseOpHook]) -> None:
         """remove hook"""
         logger = get_dist_logger()
-        logger.warning(f"removing hooks is currently not supported")
+        logger.warning("removing hooks is currently not supported")
 
     def zero_grad(self):
         """Set the gradient of parameters to zero

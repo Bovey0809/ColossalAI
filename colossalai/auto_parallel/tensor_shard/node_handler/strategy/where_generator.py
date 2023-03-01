@@ -40,12 +40,12 @@ class WhereGenerator(StrategyGenerator):
         backward_size_mapping.pop("output")
         # compute fwd cost incurred
         # fwd_cost = condition + x + y + output
-        fwd_activation_cost = sum([v for k, v in forward_size_mapping.items()])
+        fwd_activation_cost = sum(v for k, v in forward_size_mapping.items())
         fwd_mem_cost = MemoryCost(activation=fwd_activation_cost, parameter=0)
 
         # compute bwd cost incurred
         # bwd_cost = condition_grad + x_grad + y_grad
-        bwd_activation_cost = sum([v for k, v in backward_size_mapping.items()])
+        bwd_activation_cost = sum(v for k, v in backward_size_mapping.items())
         bwd_mem_cost = MemoryCost(activation=bwd_activation_cost, parameter=0)
 
         # compute total cost
@@ -67,11 +67,11 @@ class WhereGenerator(StrategyGenerator):
         name = f'{sharding_spec_mapping["output"].sharding_sequence} = {sharding_spec_mapping["condition"].sharding_sequence} x {sharding_spec_mapping["x"].sharding_sequence} x {sharding_spec_mapping["y"].sharding_sequence}'
         communication_action_mapping = {}
 
-        strategy = self.get_sharding_strategy(name=name,
-                                              sharding_spec_mapping=sharding_spec_mapping,
-                                              communication_action_mapping=communication_action_mapping)
-
-        return strategy
+        return self.get_sharding_strategy(
+            name=name,
+            sharding_spec_mapping=sharding_spec_mapping,
+            communication_action_mapping=communication_action_mapping,
+        )
 
     def enumerate_all_possible_output_spec(self, mesh_dim_0, mesh_dim_1, dimension_length):
         dim_partition_list = []

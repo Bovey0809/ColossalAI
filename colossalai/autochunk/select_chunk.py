@@ -51,11 +51,11 @@ class SelectChunk(object):
         if max(mem_peak) < self.max_memory:
             return None
 
-        # remove illegal regions
-        illegal_regions = []
-        for i in possible_chunk_regions:
-            if not self._is_legal_region(i, chunk_infos):
-                illegal_regions.append(i)
+        illegal_regions = [
+            i
+            for i in possible_chunk_regions
+            if not self._is_legal_region(i, chunk_infos)
+        ]
         for i in illegal_regions:
             if i in possible_chunk_regions:
                 possible_chunk_regions.remove(i)
@@ -63,8 +63,9 @@ class SelectChunk(object):
         if len(possible_chunk_regions) == 0:
             return None
 
-        max_possible_chunk_region = (min([i["region"][0] for i in possible_chunk_regions]),
-                                     max([i["region"][1] for i in possible_chunk_regions]))
+        max_possible_chunk_region = min(
+            i["region"][0] for i in possible_chunk_regions
+        ), max(i["region"][1] for i in possible_chunk_regions)
 
         # get mem for chunk region
         regions_dict = []
@@ -84,7 +85,7 @@ class SelectChunk(object):
                     "reorder_node_list": cur_node_list,
                 })
         # no region found
-        if len(regions_dict) == 0:
+        if not regions_dict:
             raise RuntimeError("Search failed. Try a larger memory threshold.")
 
         # select the min chunk len
@@ -116,10 +117,7 @@ class SelectChunk(object):
         return chunk_info
 
     def _chunk_size_binary_search(self, left, right, chunk_region_dict, chunk_infos):
-        if left >= 16:
-            gap = 4
-        else:
-            gap = 1
+        gap = 4 if left >= 16 else 1
         chunk_info = chunk_region_dict["reorder_chunk_info"]
         while right >= left + gap:
             mid = int((left + right) / 2 + 0.5)
@@ -135,19 +133,18 @@ class SelectChunk(object):
         return left
 
     def _get_compute_node_num(self, start, end):
-        count = 0
-        for i in self.node_mgr.get_node_slice_by_idx(start, end + 1):
-            if not is_non_compute_node(i):
-                count += 1
-        return count
+        return sum(
+            not is_non_compute_node(i)
+            for i in self.node_mgr.get_node_slice_by_idx(start, end + 1)
+        )
 
     def _select_min_memory_chunk_region(self, possible_chunk_regions, chunk_infos, peak_node, max_chunk_region,
                                         mem_peak):
-        # remove illegal regions
-        illegal_regions = []
-        for i in possible_chunk_regions:
-            if not self._is_legal_region(i, chunk_infos):
-                illegal_regions.append(i)
+        illegal_regions = [
+            i
+            for i in possible_chunk_regions
+            if not self._is_legal_region(i, chunk_infos)
+        ]
         for i in illegal_regions:
             if i in possible_chunk_regions:
                 possible_chunk_regions.remove(i)
@@ -156,8 +153,9 @@ class SelectChunk(object):
             return None
 
         # get max possible chunk region
-        max_possible_chunk_region = (min([i["region"][0] for i in possible_chunk_regions]),
-                                     max([i["region"][1] for i in possible_chunk_regions]))
+        max_possible_chunk_region = min(
+            i["region"][0] for i in possible_chunk_regions
+        ), max(i["region"][1] for i in possible_chunk_regions)
 
         # get mem for chunk region
         regions_dict_list = []
@@ -192,7 +190,10 @@ class SelectChunk(object):
             return False
         for i in chunk_infos:
             region = i["region"]
-            if not ((chunk_region_start > region[1] and chunk_region_end > region[1]) or
-                    (chunk_region_start < region[0] and chunk_region_end < region[0])):
+            if (
+                chunk_region_start <= region[1] or chunk_region_end <= region[1]
+            ) and (
+                chunk_region_start >= region[0] or chunk_region_end >= region[0]
+            ):
                 return False
         return True

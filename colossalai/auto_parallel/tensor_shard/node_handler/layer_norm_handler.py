@@ -18,9 +18,7 @@ class LayerNormModuleHandler(MetaInfoModuleHandler):
 
     def get_strategy_generator(self) -> List[StrategyGenerator]:
         op_data_mapping = self.get_operation_data_mapping()
-        generators = []
-        generators.append(LayerNormGenerator(op_data_mapping, self.device_mesh))
-        return generators
+        return [LayerNormGenerator(op_data_mapping, self.device_mesh)]
 
     def get_operation_data_mapping(self) -> Dict[str, OperationData]:
         # use transposed shape for strategies

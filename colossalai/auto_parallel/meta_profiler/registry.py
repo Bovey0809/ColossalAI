@@ -22,8 +22,7 @@ class Registry:
 
     def get(self, source):
         assert source in self.store, f'{source} not found in the {self.name} registry'
-        target = self.store[source]
-        return target
+        return self.store[source]
 
     def has(self, source):
         return source in self.store

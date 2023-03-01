@@ -28,9 +28,8 @@ class BiasAdditionModule(ABC):
               you should never call this function.
         """
         weight_node_kind = 'get_attr'
-        weight_node_target = self.target + '.weight'
-        weight_proxy = self.tracer.create_proxy(weight_node_kind, weight_node_target, (), {})
-        return weight_proxy
+        weight_node_target = f'{self.target}.weight'
+        return self.tracer.create_proxy(weight_node_kind, weight_node_target, (), {})
 
     def _create_bias_proxy(self):
         """
@@ -40,9 +39,8 @@ class BiasAdditionModule(ABC):
               you should never call this function.
         """
         bias_node_kind = 'get_attr'
-        bias_node_target = self.target + '.bias'
-        bias_proxy = self.tracer.create_proxy(bias_node_kind, bias_node_target, (), {})
-        return bias_proxy
+        bias_node_target = f'{self.target}.bias'
+        return self.tracer.create_proxy(bias_node_kind, bias_node_target, (), {})
 
     @abstractmethod
     def extract_kwargs_from_mod(self):
@@ -67,8 +65,7 @@ class BiasAdditionModule(ABC):
             input_proxy = self.args[0]
         node_args = (input_proxy, self.weight_proxy)
         node_kwargs = self.extract_kwargs_from_mod()
-        non_bias_func_proxy = self.tracer.create_proxy(node_kind, node_target, node_args, node_kwargs)
-        return non_bias_func_proxy
+        return self.tracer.create_proxy(node_kind, node_target, node_args, node_kwargs)
 
     def create_bias_addition_proxy(self, non_bias_func_proxy, bias_proxy):
         """
@@ -78,8 +75,9 @@ class BiasAdditionModule(ABC):
         bias_add_node_kind = 'call_function'
         bias_add_node_target = operator.add
         bias_add_args = (non_bias_func_proxy, bias_proxy)
-        bias_add_proxy = self.tracer.create_proxy(bias_add_node_kind, bias_add_node_target, tuple(bias_add_args), {})
-        return bias_add_proxy
+        return self.tracer.create_proxy(
+            bias_add_node_kind, bias_add_node_target, tuple(bias_add_args), {}
+        )
 
     @abstractmethod
     def generate(self):
