@@ -29,12 +29,10 @@ def is_broadcastable(shape1: torch.Size, shape2: torch.Size) -> bool:
     """
     Check if two shapes are broadcastable to each other.
     """
-    for s1, s2 in zip(shape1[::-1], shape2[::-1]):
-        if s1 == 1 or s2 == 1 or s1 == s2:
-            pass
-        else:
-            return False
-    return True
+    return not any(
+        s1 != 1 and s2 != 1 and s1 != s2
+        for s1, s2 in zip(shape1[::-1], shape2[::-1])
+    )
 
 
 def get_broadcast_shape(shape1: torch.Size, shape2: torch.Size) -> List[int]:
@@ -45,10 +43,7 @@ def get_broadcast_shape(shape1: torch.Size, shape2: torch.Size) -> List[int]:
     shape1_reverse = shape1[::-1]
     shape2_reverse = shape2[::-1]
     min_common_dim = min(len(shape1), len(shape2))
-    dims = []
-    for s1, s2 in zip(shape1_reverse, shape2_reverse):
-        dims.append(max(s1, s2))
-
+    dims = [max(s1, s2) for s1, s2 in zip(shape1_reverse, shape2_reverse)]
     # append the remaining dims
     dims.extend(shape1_reverse[min_common_dim:])
     dims.extend(shape2_reverse[min_common_dim:])
@@ -70,14 +65,14 @@ def get_broadcast_dim_info(logical_shape, physical_shape):
         # get the trailing dim size
         logical_dim_idx = logical_num_dims - i - 1
         phyiscal_dim_idx = physical_num_dims - i - 1
-        logical_dim_size = logical_shape[logical_dim_idx]
-
         if phyiscal_dim_idx >= 0:
             physical_dim_size = physical_shape[phyiscal_dim_idx]
 
+            logical_dim_size = logical_shape[logical_dim_idx]
+
             if physical_dim_size == logical_dim_size:
                 logical_dim_broadcast_info[logical_dim_idx] = BroadcastType.EQUAL
-            elif physical_dim_size == 1 and physical_dim_size != logical_dim_size:
+            elif physical_dim_size == 1:
                 logical_dim_broadcast_info[logical_dim_idx] = BroadcastType.MULTIPLE
         else:
             logical_dim_broadcast_info[logical_dim_idx] = BroadcastType.PADDDING
@@ -117,7 +112,10 @@ def recover_sharding_spec_for_broadcast_shape(logical_sharding_spec: ShardingSpe
     for shape_dim, mesh_dim in logical_dim_partition.items():
         logical_broadcast_type = logical_dim_broadcast_info[shape_dim]
 
-        if logical_broadcast_type == BroadcastType.PADDDING or logical_broadcast_type == BroadcastType.MULTIPLE:
+        if logical_broadcast_type in [
+            BroadcastType.PADDDING,
+            BroadcastType.MULTIPLE,
+        ]:
             removed_dims.extend(mesh_dim)
         else:
             # get the corresponding physical dim
@@ -151,10 +149,9 @@ def comm_actions_for_oprands(node: Node, removed_dims: List[int], op_data: Opera
     for index, arg in enumerate(node.args):
         if op_data.name == str(arg):
             arg_index = index
-    assert arg_index >= 0, f'op_data should be an argument of node.'
-    comm_action = CommAction(
+    assert arg_index >= 0, 'op_data should be an argument of node.'
+    return CommAction(
         comm_spec=comm_spec,
         comm_type=comm_type,
         arg_index=arg_index,
     )
-    return comm_action

@@ -288,10 +288,9 @@ class Initializer_2p5D(ProcessGroupInitializer):
             List[Tuple (local_rank, group_world_size, process_group, ranks_in_group, mode)]:
                 Whole 2.5D tensor parallelism's information in a list of tuples.
         """
-        parallel_setting = [
+        return [
             self.col_initializer.init_dist_group(),
             self.row_initializer.init_dist_group(),
             self.dep_initializer.init_dist_group(),
-            self.xz_initializer.init_dist_group()
+            self.xz_initializer.init_dist_group(),
         ]
-        return parallel_setting

@@ -44,11 +44,7 @@ def _compute_table(chain: Chain, mmax) -> Tuple:
         for i in range(chain.length + 1):
             #lmax-lmin = 0
             limit = max(cw[i + 1] + cbw[i + 1] + fwd_mem_tmp[i], cw[i + 1] + cbw[i + 1] + bwd_mem_tmp[i])
-            if m >= limit:    ## Equation (1)
-                opt[m][i][i] = fw[i] + bw[i]
-            else:
-                opt[m][i][i] = float("inf")
-
+            opt[m][i][i] = fw[i] + bw[i] if m >= limit else float("inf")
     # Compute everything
     for m in range(mmax + 1):
         for d in range(1, chain.length + 1):
@@ -61,10 +57,16 @@ def _compute_table(chain: Chain, mmax) -> Tuple:
                 if m < mmin:
                     opt[m][i][idx] = float("inf")
                 else:
-                    leaf_checkpoints = [(j, sum(fw[i:j]) + opt[m - cw[j]][j][idx] + opt[m][i][j - 1])
-                                        for j in range(i + 1, idx + 1)
-                                        if m >= cw[j]]
-                    if leaf_checkpoints:
+                    if leaf_checkpoints := [
+                        (
+                            j,
+                            sum(fw[i:j])
+                            + opt[m - cw[j]][j][idx]
+                            + opt[m][i][j - 1],
+                        )
+                        for j in range(i + 1, idx + 1)
+                        if m >= cw[j]
+                    ]:
                         best_leaf = min(leaf_checkpoints, key=lambda t: t[1])
                     else:
                         best_leaf = None
@@ -136,10 +138,7 @@ def _fwd_xbar(node: List[Node]) -> int:
         int: xbar size, unit Byte
     """
 
-    xbar = 0
-    for n in node:
-        xbar += calculate_fwd_tmp(n) + calculate_fwd_out(n)
-    return xbar
+    return sum(calculate_fwd_tmp(n) + calculate_fwd_out(n) for n in node)
 
 
 def _fwd_time(node: List[Node]) -> int:
@@ -153,11 +152,7 @@ def _fwd_time(node: List[Node]) -> int:
         int: foward time, extimated by flops count
     """
 
-    fwd_time = 0
-    for n in node:
-        # minimum flop count is needed
-        fwd_time += max(n.meta['fwd_flop'], 1)
-    return fwd_time
+    return sum(max(n.meta['fwd_flop'], 1) for n in node)
 
 
 def _bwd_time(node: List[Node]) -> int:
@@ -171,11 +166,7 @@ def _bwd_time(node: List[Node]) -> int:
         int: backward time, extimated by flops count
     """
 
-    bwd_time = 0
-    for n in node:
-        # minimum flop count is needed
-        bwd_time += max(n.meta['bwd_flop'], 1)
-    return bwd_time
+    return sum(max(n.meta['bwd_flop'], 1) for n in node)
 
 
 def _get_fwd_mem_tmp(node: List[Node]) -> int:
@@ -240,7 +231,7 @@ def _construct_chain(node_list: List[List[Node]], input) -> Chain:
     tmp_fwd = []
     tmp_bwd = []
 
-    for idx, node in enumerate(node_list):
+    for node in node_list:
         fwd_time.append(_fwd_time(node))
         bwd_time.append(_bwd_time(node))
         x_sizes.append(calculate_fwd_out(node[-1]))
@@ -288,10 +279,9 @@ def _annotate_from_sequence(sequence: Sequence, node_list: List[List[Node]]):
                 ckpt_idx += 1
                 ckpt_region = [idx]
 
-        else:
-            if isinstance(op, ForwardCheck):
-                in_ckpt = True
-                ckpt_region.append(idx)
+        elif isinstance(op, ForwardCheck):
+            in_ckpt = True
+            ckpt_region.append(idx)
 
     # annotate the backward if there is any nested activation checkpoint
     in_recompute = False
@@ -323,13 +313,12 @@ def _annotate_from_sequence(sequence: Sequence, node_list: List[List[Node]]):
 
                 in_recompute = False
 
-        else:
-            if not isinstance(op, Backward):
-                in_recompute = True
-                ckpt_idx = 0
-                ckpt_region = []
-                if isinstance(op, ForwardCheck):
-                    ckpt_region.append(op.index)
+        elif not isinstance(op, Backward):
+            in_recompute = True
+            ckpt_idx = 0
+            ckpt_region = []
+            if isinstance(op, ForwardCheck):
+                ckpt_region.append(op.index)
 
     # postprocess, make sure every activation checkpoint label in the
     # same activation checkpoint region (level = 0) has the same length

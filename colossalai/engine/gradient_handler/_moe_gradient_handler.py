@@ -40,6 +40,6 @@ class MoeGradientHandler(BaseGradientHandler):
                 bucket_allreduce(param_list=epsize_param_dict[1], group=gpc.get_group(ParallelMode.DATA))
 
             for ep_size in epsize_param_dict:
-                if ep_size != 1 and ep_size != MOE_CONTEXT.world_size:
+                if ep_size not in [1, MOE_CONTEXT.world_size]:
                     bucket_allreduce(param_list=epsize_param_dict[ep_size],
                                      group=MOE_CONTEXT.parallel_info_dict[ep_size].dp_group)

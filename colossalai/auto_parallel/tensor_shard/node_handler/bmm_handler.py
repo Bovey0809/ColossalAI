@@ -53,14 +53,11 @@ class BMMFunctionHandler(NodeHandler):
     """
 
     def get_operation_data_mapping(self) -> Dict[str, OperationData]:
-        mapping = _get_data_mapping_for_bmm_op(node=self.node, input_idx=0, other_idx=1)
-        return mapping
+        return _get_data_mapping_for_bmm_op(node=self.node, input_idx=0, other_idx=1)
 
     def get_strategy_generator(self) -> List[StrategyGenerator]:
         op_data_mapping = self.get_operation_data_mapping()
-        generators = []
-        generators.append(BatchedMatMulStrategyGenerator(op_data_mapping, self.device_mesh))
-        return generators
+        return [BatchedMatMulStrategyGenerator(op_data_mapping, self.device_mesh)]
 
 
 @operator_registry.register(torch.addbmm)
@@ -75,14 +72,13 @@ class AddBMMFunctionHandler(NodeHandler):
     """
 
     def get_operation_data_mapping(self) -> Dict[str, OperationData]:
-        mapping = _get_data_mapping_for_bmm_op(node=self.node, input_idx=1, other_idx=2, bias_idx=0)
-        return mapping
+        return _get_data_mapping_for_bmm_op(
+            node=self.node, input_idx=1, other_idx=2, bias_idx=0
+        )
 
     def get_strategy_generator(self) -> List[StrategyGenerator]:
         op_data_mapping = self.get_operation_data_mapping()
-        generators = []
-        generators.append(BatchedMatMulStrategyGenerator(op_data_mapping, self.device_mesh))
-        return generators
+        return [BatchedMatMulStrategyGenerator(op_data_mapping, self.device_mesh)]
 
     def post_process(self, strategy: ShardingStrategy) -> Union[ShardingStrategy, List[ShardingStrategy]]:
         # convert bias from its logical sharding spec to its physical sharding spec

@@ -4,9 +4,7 @@ from torch.utils._pytree import tree_map
 
 
 def normalize_tuple(x):
-    if not isinstance(x, tuple):
-        return (x,)
-    return x
+    return x if isinstance(x, tuple) else (x, )
 
 
 def is_autogradable(x):
@@ -30,6 +28,8 @@ def meta_trace(module: torch.nn.Module, fake_device=None, *args, **kwargs) -> Gr
     """
     graph = Graph()
     namespace = graph._graph_namespace
+
+
 
     class MetaProxy(torch.Tensor):
         """
@@ -81,7 +81,7 @@ def meta_trace(module: torch.nn.Module, fake_device=None, *args, **kwargs) -> Gr
             def get_node(x):
                 if isinstance(x, torch.Tensor) and not hasattr(x, '_node'):
                     x = MetaProxy(x, placeholder=True, name='weight')
-                return x if not hasattr(x, '_node') else x._node
+                return x._node if hasattr(x, '_node') else x
 
             args_node = tree_map(get_node, args)
             kwargs_node = tree_map(get_node, kwargs)
@@ -114,6 +114,7 @@ def meta_trace(module: torch.nn.Module, fake_device=None, *args, **kwargs) -> Gr
             tree_map(set_node, out)
 
             return out
+
 
     def wrap(x):
         return MetaProxy(x, fake_device=fake_device, placeholder=True) if isinstance(x, torch.Tensor) else x

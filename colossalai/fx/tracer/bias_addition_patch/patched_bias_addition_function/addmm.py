@@ -35,8 +35,7 @@ class Addmm(LinearBasedBiasFunc):
         node_target = torch.transpose
         node_args = (other_proxy, 0, 1)
         node_kwargs = {}
-        transpose_proxy = self.tracer.create_proxy(node_kind, node_target, node_args, node_kwargs)
-        return transpose_proxy
+        return self.tracer.create_proxy(node_kind, node_target, node_args, node_kwargs)
 
     def generate(self):
         transpose_proxy = self.transpose_other_operand_for_linear(self.args[2])
@@ -55,6 +54,4 @@ class Addmm(LinearBasedBiasFunc):
         else:
             alpha_proxy = non_bias_linear_func_proxy
 
-        bias_addition_proxy = self.create_bias_addition_proxy(alpha_proxy, beta_proxy)
-
-        return bias_addition_proxy
+        return self.create_bias_addition_proxy(alpha_proxy, beta_proxy)

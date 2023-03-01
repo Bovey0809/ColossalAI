@@ -105,12 +105,7 @@ class ColoProxy(Proxy):
         return proxy
 
     def __contains__(self, key):
-        if self.node.op == "placeholder":
-            # this is used to handle like
-            # if x in kwargs
-            # we don't handle this case for now
-            return False
-        return super().__contains__(key)
+        return False if self.node.op == "placeholder" else super().__contains__(key)
 
     def __isinstancecheck__(self, type):
         return isinstance(self.meta_data, type)
@@ -198,9 +193,25 @@ class ColoTracer(Tracer):
 
         proxy: ColoProxy = super().create_proxy(kind, target, args, kwargs, name, type_expr, proxy_factory_fn)
         unwrap_fn = lambda p: p.meta_data if isinstance(p, ColoProxy) else p
-        if kind == 'placeholder':
-            proxy.meta_data = self.meta_args[target] if target in self.meta_args else self.concrete_args.get(
-                _truncate_suffix(target), None)
+        if kind == 'call_function':
+            proxy.meta_data = target(*tree_map(unwrap_fn, args), **tree_map(unwrap_fn, kwargs))
+        elif kind == 'call_method':
+            self._disable_module_getattr = True
+            try:
+                if target == '__call__':
+                    proxy.meta_data = unwrap_fn(args[0])(*tree_map(unwrap_fn, args[1:]), **tree_map(unwrap_fn, kwargs))
+                elif target not in _TensorPropertyMethod:
+                    proxy._meta_data = getattr(unwrap_fn(args[0]), target)(*tree_map(unwrap_fn, args[1:]),
+                                                                           **tree_map(unwrap_fn, kwargs))
+            finally:
+                self._disable_module_getattr = False
+        elif kind == 'call_module':
+            mod = self.root.get_submodule(target)
+            self._disable_module_getattr = True
+            try:
+                proxy.meta_data = mod.forward(*tree_map(unwrap_fn, args), **tree_map(unwrap_fn, kwargs))
+            finally:
+                self._disable_module_getattr = False
         elif kind == 'get_attr':
             self._disable_module_getattr = True
             try:
@@ -211,26 +222,9 @@ class ColoTracer(Tracer):
                 proxy.meta_data = attr_itr
             finally:
                 self._disable_module_getattr = False
-        elif kind == 'call_function':
-            proxy.meta_data = target(*tree_map(unwrap_fn, args), **tree_map(unwrap_fn, kwargs))
-        elif kind == 'call_method':
-            self._disable_module_getattr = True
-            try:
-                if target == '__call__':
-                    proxy.meta_data = unwrap_fn(args[0])(*tree_map(unwrap_fn, args[1:]), **tree_map(unwrap_fn, kwargs))
-                else:
-                    if target not in _TensorPropertyMethod:
-                        proxy._meta_data = getattr(unwrap_fn(args[0]), target)(*tree_map(unwrap_fn, args[1:]),
-                                                                               **tree_map(unwrap_fn, kwargs))
-            finally:
-                self._disable_module_getattr = False
-        elif kind == 'call_module':
-            mod = self.root.get_submodule(target)
-            self._disable_module_getattr = True
-            try:
-                proxy.meta_data = mod.forward(*tree_map(unwrap_fn, args), **tree_map(unwrap_fn, kwargs))
-            finally:
-                self._disable_module_getattr = False
+        elif kind == 'placeholder':
+            proxy.meta_data = self.meta_args[target] if target in self.meta_args else self.concrete_args.get(
+                _truncate_suffix(target), None)
         return proxy
 
     def create_node(self, *args, **kwargs) -> Node:
@@ -320,22 +314,19 @@ class ColoTracer(Tracer):
         # https://github.com/pytorch/pytorch/pull/55888.
         for node in self.graph.nodes:
             if node.op == "placeholder":
-                # Removing default values for inputs as the forward pass will fail with them.
                 if node.target in non_concrete_arg_names:
                     node.args = ()
                     # Without this, torch.jit.script fails because the inputs type is Optional[torch.Tensor].
                     # It cannot infer on the attributes and methods the input should have, and fails.
                     node.type = torch.Tensor
-                # It is a concrete arg so it is not used and should be removed.
                 else:
                     if hasattr(torch.fx._symbolic_trace, "_assert_is_none"):
-                        # Newer versions of torch.fx emit an assert statement
-                        # for concrete arguments; delete those before we delete
-                        # the concrete arg.
-                        to_delete = []
-                        for user in node.users:
-                            if user.target == torch.fx._symbolic_trace._assert_is_none:
-                                to_delete.append(user)
+                        to_delete = [
+                            user
+                            for user in node.users
+                            if user.target
+                            == torch.fx._symbolic_trace._assert_is_none
+                        ]
                         for user in to_delete:
                             self.graph.erase_node(user)
 
@@ -357,8 +348,11 @@ class ColoTracer(Tracer):
                     if n not in parameter_proxy_cache:
                         kwargs = {}
                         if 'proxy_factory_fn' in inspect.signature(self.create_proxy).parameters:
-                            kwargs['proxy_factory_fn'] = (None if not self.param_shapes_constant else
-                                                          lambda node: ColoProxy(self, node, n, attr_val))
+                            kwargs['proxy_factory_fn'] = (
+                                (lambda node: ColoProxy(self, node, n, attr_val))
+                                if self.param_shapes_constant
+                                else None
+                            )
                         val_proxy = self.create_proxy('get_attr', n, (), {}, **kwargs)    # type: ignore[arg-type]
                         parameter_proxy_cache[n] = val_proxy
                     return parameter_proxy_cache[n]
@@ -490,10 +484,9 @@ def _meta_data_computing(meta_args, concrete_args, root, kind, target, args, kwa
     elif kind == 'call_method':
         if target == '__call__':
             meta_out = unwrap_fn(args[0])(*tree_map(unwrap_fn, args[1:]), **tree_map(unwrap_fn, kwargs))
-        else:
-            if target not in _TensorPropertyMethod:
-                meta_out = getattr(unwrap_fn(args[0]), target)(*tree_map(unwrap_fn, args[1:]),
-                                                               **tree_map(unwrap_fn, kwargs))
+        elif target not in _TensorPropertyMethod:
+            meta_out = getattr(unwrap_fn(args[0]), target)(*tree_map(unwrap_fn, args[1:]),
+                                                           **tree_map(unwrap_fn, kwargs))
     elif kind == 'call_module':
         mod = root.get_submodule(target)
         meta_out = mod.forward(*tree_map(unwrap_fn, args), **tree_map(unwrap_fn, kwargs))
@@ -504,17 +497,13 @@ def _meta_data_computing(meta_args, concrete_args, root, kind, target, args, kwa
 
 def _meta_data_computing_v0(meta_args, root, kind, target, args, kwargs):
     if kind == "placeholder" and target in meta_args and meta_args[target].is_meta:
-        meta_out = meta_args[target]
-        return meta_out
-
-    if target in [getattr(torch, torch_func) for torch_func in _TorchNewMethod]:
-        # NOTE: tensor constructors in PyTorch define the `device` argument as
-        # *kwargs-only*. That is why this works. If you add methods to
-        # _TORCH_METHODS_TO_PATCH that do not define `device` as kwarg-only,
-        # this will break and you will likely see issues where we cannot infer
-        # the size of the output.
-        if "device" in kwargs:
-            kwargs["device"] = "meta"
+        return meta_args[target]
+    if (
+        target
+        in [getattr(torch, torch_func) for torch_func in _TorchNewMethod]
+        and "device" in kwargs
+    ):
+        kwargs["device"] = "meta"
 
     try:
         unwrap_fn = lambda n: n._meta_data if isinstance(n, Node) else n

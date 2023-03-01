@@ -64,7 +64,7 @@ class NonPipelineSchedule(BaseSchedule):
             Tuple[:class:`torch.Tensor`]: A tuple of (output, label, loss), loss and label could be None.
         """
         assert forward_only or return_loss, \
-            "The argument 'return_loss' has to be True when 'forward_only' is False, but got False."
+                "The argument 'return_loss' has to be True when 'forward_only' is False, but got False."
         batch_data = self.load_batch(data_iter)
         if self.data_process_func:
             data, label = self.data_process_func(batch_data)
@@ -83,12 +83,6 @@ class NonPipelineSchedule(BaseSchedule):
             engine.backward(loss)
 
         if return_output_label:
-            if return_loss:
-                return output, label, loss
-            else:
-                return output, label, None
+            return (output, label, loss) if return_loss else (output, label, None)
         else:
-            if return_loss:
-                return None, None, loss
-            else:
-                return None, None, None
+            return (None, None, loss) if return_loss else (None, None, None)

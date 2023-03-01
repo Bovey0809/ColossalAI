@@ -202,9 +202,10 @@ class NodeHandler(ABC):
                 remove_strategy_list.append(strategy)
             if self.shard_option == ShardOption.FULL_SHARD and shard_level <= 1:
                 remove_strategy_list.append(strategy)
-            if self.shard_option == ShardOption.SHARD_LAST_AXIS:
-                if shard_level != 1 or using_last_axis == False:
-                    remove_strategy_list.append(strategy)
+            if self.shard_option == ShardOption.SHARD_LAST_AXIS and (
+                shard_level != 1 or not using_last_axis
+            ):
+                remove_strategy_list.append(strategy)
 
         for strategy in remove_strategy_list:
             self.strategies_vector.remove(strategy)
@@ -289,14 +290,15 @@ class ModuleHandler(NodeHandler):
         super().__init__(*args, **kwargs)
 
         # set attributes to access module parameters for convenience
-        assert self.node.graph.owning_module is not None, \
-            f'The graph is not associated with a module, please make sure it can be used to instantiate a GraphModule object.'
+        assert (
+            self.node.graph.owning_module is not None
+        ), 'The graph is not associated with a module, please make sure it can be used to instantiate a GraphModule object.'
         module = self.node.graph.owning_module.get_submodule(self.node.target)
         named_parameters = list(module.named_parameters(recurse=False))
         named_buffers = list(module.named_buffers(recurse=False))
         # convert named parameters from list to dict
-        named_parameters = {k: v for k, v in named_parameters}
-        named_buffers = {k: v for k, v in named_buffers}
+        named_parameters = dict(named_parameters)
+        named_buffers = dict(named_buffers)
         self.module = module
         self.named_parameters = named_parameters
         self.named_buffers = named_buffers

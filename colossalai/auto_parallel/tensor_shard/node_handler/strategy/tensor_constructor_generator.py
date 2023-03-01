@@ -37,8 +37,12 @@ class TensorConstructorGenerator(StrategyGenerator):
 
         # compute fwd cost incurred
         # fwd_cost = input + output
-        fwd_activation_cost = sum([v for k, v in forward_size_mapping.items() if not self.is_param(k)])
-        fwd_parameter_cost = sum([v for k, v in forward_size_mapping.items() if self.is_param(k)])
+        fwd_activation_cost = sum(
+            v for k, v in forward_size_mapping.items() if not self.is_param(k)
+        )
+        fwd_parameter_cost = sum(
+            v for k, v in forward_size_mapping.items() if self.is_param(k)
+        )
         fwd_mem_cost = MemoryCost(activation=fwd_activation_cost, parameter=fwd_parameter_cost)
 
         # compute bwd cost incurred
@@ -50,7 +54,6 @@ class TensorConstructorGenerator(StrategyGenerator):
         strategy.memory_cost = memory_cost
 
     def collate_strategies(self) -> List[ShardingStrategy]:
-        strategy_list = []
         dim_partition_dict_mapping = {
             "output": {},
         }
@@ -62,6 +65,4 @@ class TensorConstructorGenerator(StrategyGenerator):
         strategy = self.get_sharding_strategy(name=name,
                                               sharding_spec_mapping=sharding_spec_mapping,
                                               communication_action_mapping=communication_action_mapping)
-        strategy_list.append(strategy)
-
-        return strategy_list
+        return [strategy]

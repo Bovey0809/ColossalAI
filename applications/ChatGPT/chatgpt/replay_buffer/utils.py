@@ -44,12 +44,11 @@ def split_experience_batch(experience: Experience) -> List[BufferItem]:
         assert batch_size == len(vals)
         for i, v in enumerate(vals):
             batch_kwargs[i][key] = v
-    items = [BufferItem(**kwargs) for kwargs in batch_kwargs]
-    return items
+    return [BufferItem(**kwargs) for kwargs in batch_kwargs]
 
 
 def zero_pad_sequences(sequences: List[torch.Tensor], side: str = 'left') -> torch.Tensor:
-    assert side in ('left', 'right')
+    assert side in {'left', 'right'}
     max_len = max(seq.size(0) for seq in sequences)
     padded_sequences = []
     for seq in sequences:
@@ -61,7 +60,7 @@ def zero_pad_sequences(sequences: List[torch.Tensor], side: str = 'left') -> tor
 
 def make_experience_batch(items: List[BufferItem]) -> Experience:
     kwargs = {}
-    to_pad_keys = set(('action_log_probs', 'action_mask'))
+    to_pad_keys = {'action_log_probs', 'action_mask'}
     keys = ('sequences', 'action_log_probs', 'values', 'reward', 'advantages', 'attention_mask', 'action_mask')
     for key in keys:
         vals = [getattr(item, key) for item in items]

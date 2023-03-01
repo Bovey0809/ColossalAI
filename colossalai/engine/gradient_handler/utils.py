@@ -19,8 +19,7 @@ def bucket_allreduce(param_list: Iterable[nn.Parameter], group=None):
             buckets[tp].append(param)
 
     # For each bucket, all-reduce and copy all-reduced grads.
-    for tp in buckets:
-        bucket = buckets[tp]
+    for bucket in buckets.values():
         grads = [param.grad.data for param in bucket]
         coalesced = _flatten_dense_tensors(grads)
         coalesced /= comm_size

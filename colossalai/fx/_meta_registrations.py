@@ -167,8 +167,17 @@ def meta_conv(
 def meta_conv_1(input_tensor: torch.Tensor, weight: torch.Tensor, bias: torch.Tensor, stride: List[int],
                 padding: List[int], dilation: List[int], is_transposed: bool, output_padding: List[int], groups: int,
                 *extra_args):
-    out = meta_conv(input_tensor, weight, bias, stride, padding, dilation, is_transposed, output_padding, groups)
-    return out
+    return meta_conv(
+        input_tensor,
+        weight,
+        bias,
+        stride,
+        padding,
+        dilation,
+        is_transposed,
+        output_padding,
+        groups,
+    )
 
 
 @register_meta(aten.convolution_backward.default)
@@ -183,8 +192,7 @@ def meta_adaptive_avg_pool2d_backward(
     grad_output: torch.Tensor,
     input: torch.Tensor,
 ):
-    grad_input = torch.empty_like(input)
-    return grad_input
+    return torch.empty_like(input)
 
 
 # ================================ RNN =============================================
@@ -234,7 +242,7 @@ def meta_cuda_rnn(
     hy = hx.new_empty([num_layers * num_directions, mini_batch, out_size])
 
     # TODO: Query cudnnGetRNNTrainingReserveSize (expose to python)
-    reserve_shape = 0 if train else 0
+    reserve_shape = 0
     reserve = input.new_empty(reserve_shape, dtype=torch.uint8)
 
     return output, hy, cy, reserve, weight_buf
@@ -281,14 +289,12 @@ def meta_hardtanh(input: torch.Tensor, min, max):
 
 @register_meta(aten.hardswish_backward.default)
 def meta_hardswish_backward(grad_out: torch.Tensor, input: torch.Tensor):
-    grad_in = torch.empty_like(input)
-    return grad_in
+    return torch.empty_like(input)
 
 
 @register_meta(aten.hardtanh_backward.default)
 def meta_hardtanh_backward(grad_out: torch.Tensor, input: torch.Tensor, min_val: int, max_val: int):
-    grad_in = torch.empty_like(input)
-    return grad_in
+    return torch.empty_like(input)
 
 
 # ============================== Normalization =====================================
@@ -436,9 +442,8 @@ def meta_index_Tensor(self, indices):
         elif state == 1:
             if index is None:
                 state = 2
-        else:
-            if index is not None:
-                break
+        elif index is not None:
+            break
     else:
         has_contiguous_subspace = True
 

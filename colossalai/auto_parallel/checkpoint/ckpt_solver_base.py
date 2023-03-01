@@ -24,7 +24,10 @@ def _copy_output(src: Graph, dst: Graph):
 
 def _get_param_size(module: torch.nn.Module):
     """Get the size of the parameters in the module"""
-    return sum([p.numel() * torch.tensor([], dtype=p.dtype).element_size() for p in module.parameters()])
+    return sum(
+        p.numel() * torch.tensor([], dtype=p.dtype).element_size()
+        for p in module.parameters()
+    )
 
 
 class CheckpointSolverBase(ABC):
@@ -154,15 +157,18 @@ class CheckpointSolverBase(ABC):
                 """
                 return n.target in [runtime_apply, runtime_apply_for_iterable_object, runtime_comm_spec_apply]
 
-            return not sum([v for _, v in deps.items()]) and not any(map(_is_inplace, n.users)) and not any(
-                map(_is_shape_consistency, n.users))
+            return (
+                not sum(v for _, v in deps.items())
+                and not any(map(_is_inplace, n.users))
+                and not any(map(_is_shape_consistency, n.users))
+            )
 
         # make sure that item in cnode is valid
         if self.cnode:
             for name in self.cnode:
                 try:
                     assert next(node for node in self.graph.nodes if node.name == name).op == "placeholder", \
-                    f"Common node {name} is not an input of the model."
+                        f"Common node {name} is not an input of the model."
                 except StopIteration:
                     raise ValueError(f"Common node name {name} not in graph.")
 
@@ -174,7 +180,7 @@ class CheckpointSolverBase(ABC):
         region = []
 
         for n in self.graph.nodes:
-            if n.op != "placeholder" and n.op != "output":
+            if n.op not in ["placeholder", "output"]:
                 for n_par in n.all_input_nodes:
                     if n_par.op != "placeholder" and n_par.name not in self.cnode:
                         deps[n_par] -= 1

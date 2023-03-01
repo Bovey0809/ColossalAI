@@ -46,9 +46,7 @@ class BaseGradScaler(ABC):
         """Returns the states of the gradient scaler as a dict object.
         """
 
-        state_dict = dict()
-        state_dict['scale'] = self.scale
-        return state_dict
+        return {'scale': self.scale}
 
     def load_state_dict(self, state_dict: Dict) -> None:
         """Load the states of the gradient scaler from a dict object.

@@ -33,13 +33,13 @@ class Actor(LoRAModule):
     ) -> Union[Tuple[torch.LongTensor, torch.LongTensor], Tuple[torch.LongTensor, torch.LongTensor, torch.BoolTensor]]:
         sequences = generate(self.model, input_ids, **kwargs)
         attention_mask = None
-        pad_token_id = kwargs.get('pad_token_id', None)
+        pad_token_id = kwargs.get('pad_token_id')
         if pad_token_id is not None:
             attention_mask = sequences.not_equal(pad_token_id).to(dtype=torch.long, device=sequences.device)
         if not return_action_mask:
             return sequences, attention_mask
         input_len = input_ids.size(1)
-        eos_token_id = kwargs.get('eos_token_id', None)
+        eos_token_id = kwargs.get('eos_token_id')
         if eos_token_id is None:
             action_mask = torch.ones_like(sequences, dtype=torch.bool)
         else:

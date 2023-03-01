@@ -20,9 +20,11 @@ class DefaultReshapeHandler(MetaInfoNodeHandler):
 
     def get_strategy_generator(self) -> List[StrategyGenerator]:
         op_data_mapping = self.get_operation_data_mapping()
-        generators = []
-        generators.append(DefaultReshapeGenerator(op_data_mapping, self.device_mesh, self.node.args[0]))
-        return generators
+        return [
+            DefaultReshapeGenerator(
+                op_data_mapping, self.device_mesh, self.node.args[0]
+            )
+        ]
 
     def infer_logical_shape(self, data):
         """
@@ -33,14 +35,12 @@ class DefaultReshapeHandler(MetaInfoNodeHandler):
         """
         if isinstance(data, torch.Tensor):
             return data.shape
-        else:
-            assert isinstance(data, tuple), "input_data should be a tuple of tensor or a tensor."
-            logical_shape = []
-            for tensor in data:
-                assert isinstance(tensor, torch.Tensor), "input_data should be a tuple of tensor or a tensor."
-                logical_shape.append(tensor.shape)
-            logical_shape = tuple(logical_shape)
-            return logical_shape
+        assert isinstance(data, tuple), "input_data should be a tuple of tensor or a tensor."
+        logical_shape = []
+        for tensor in data:
+            assert isinstance(tensor, torch.Tensor), "input_data should be a tuple of tensor or a tensor."
+            logical_shape.append(tensor.shape)
+        return tuple(logical_shape)
 
     def get_operation_data_mapping(self) -> Dict[str, OperationData]:
         # use transposed shape for strategies
@@ -66,6 +66,4 @@ class DefaultReshapeHandler(MetaInfoNodeHandler):
                                         data=output_data,
                                         logical_shape=output_logical_shape)
 
-        mapping = {"input": physical_input_operand, "output": physical_output}
-
-        return mapping
+        return {"input": physical_input_operand, "output": physical_output}

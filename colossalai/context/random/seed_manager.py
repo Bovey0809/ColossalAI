@@ -17,8 +17,8 @@ class SeedManager:
 
     def __init__(self):
         self._current_mode = None
-        self._seeds = dict()
-        self._seed_states = dict()
+        self._seeds = {}
+        self._seed_states = {}
 
     @property
     def current_mode(self):
@@ -72,7 +72,7 @@ class SeedManager:
                 or the seed for `parallel_mode` has been added.
         """
         assert isinstance(parallel_mode, ParallelMode), 'A valid ParallelMode must be provided'
-        if overwrtie is False:
+        if not overwrtie:
             assert parallel_mode not in self._seed_states, f'The seed for {parallel_mode} has been added'
         elif parallel_mode in self._seed_states:
             print(f"Warnning: {parallel_mode} seed has been overwritten.", flush=True)
@@ -85,5 +85,5 @@ class SeedManager:
 
     def reset(self):
         self._current_mode = None
-        self._seeds = dict()
-        self._seed_states = dict()
+        self._seeds = {}
+        self._seed_states = {}

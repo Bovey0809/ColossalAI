@@ -92,8 +92,7 @@ class LoraLinear(lora.LoRALayer, nn.Module):
 
 def lora_linear_wrapper(linear: nn.Linear, lora_rank: int) -> LoraLinear:
     assert lora_rank <= linear.in_features, f'LoRA rank ({lora_rank}) must be less than or equal to in features ({linear.in_features})'
-    lora_linear = LoraLinear(linear.weight, linear.bias, r=lora_rank, merge_weights=False)
-    return lora_linear
+    return LoraLinear(linear.weight, linear.bias, r=lora_rank, merge_weights=False)
 
 
 def convert_to_lora_recursively(module: nn.Module, lora_rank: int) -> None:

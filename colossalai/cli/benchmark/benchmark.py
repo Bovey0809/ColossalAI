@@ -75,10 +75,9 @@ def run_dist_profiling(rank: int, world_size: int, port_list: List[int], config_
 
         if hyperparams.model == 'mlp':
             model = MLP(dim=hyperparams.dimension, layers=hyperparams.layers)
-        else:
-            if gpc.get_global_rank() == 0:
-                click.echo("Error: Invalid argument for --model")
-                exit()
+        elif gpc.get_global_rank() == 0:
+            click.echo("Error: Invalid argument for --model")
+            exit()
 
         data_func = partial(get_batch_data,
                             dim=hyperparams.dimension,

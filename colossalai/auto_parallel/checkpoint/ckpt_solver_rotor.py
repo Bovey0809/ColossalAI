@@ -112,7 +112,7 @@ class CheckpointSolverRotor(CheckpointSolverBase):
     @classmethod
     def _construct_chain(cls, graph: Graph, node_list: List[List[Node]]) -> Chain:
         input_tensors = cls._extract_input(graph)
-        ftime, btime, ftmp, btmp = list(), list(), list(), list()
+        ftime, btime, ftmp, btmp = [], [], [], []
         xbar, x = [activation_size(input_tensors)], [activation_size(input_tensors)]
 
         for node in node_list:
@@ -139,7 +139,7 @@ class CheckpointSolverRotor(CheckpointSolverBase):
         fwd_mem_peak = 0
         for n in node:
             assert isinstance(n, Node), f'{n} is not a Node'
-            if n.target == runtime_apply or n.target == runtime_comm_spec_apply:
+            if n.target in [runtime_apply, runtime_comm_spec_apply]:
                 # in this case we need to calculate memory usage directly based on the statics that hooked in node.meta
                 xbar += n.meta['fwd_mem_out']
                 fwd_mem_peak = max(fwd_mem_peak, xbar + n.meta['fwd_mem_tmp'])
@@ -160,11 +160,11 @@ class CheckpointSolverRotor(CheckpointSolverBase):
     @staticmethod
     def _extract_input(graph: Graph) -> Tuple[Tensor, ...]:
         """Extract input tensors from a Graph"""
-        input_tensors = []
-        for node in graph.nodes:
-            if node.op == 'placeholder':
-                input_tensors.append(node.meta['fwd_out'])
-        return input_tensors
+        return [
+            node.meta['fwd_out']
+            for node in graph.nodes
+            if node.op == 'placeholder'
+        ]
 
     @staticmethod
     def _extract_unused_output(node: Node) -> int:
@@ -228,11 +228,7 @@ class CheckpointSolverRotor(CheckpointSolverBase):
         for m in range(mmax + 1):
             for i in range(len(chain) + 1):
                 limit = max(x[i + 1] + xbar[i + 1] + ftmp[i], x[i + 1] + xbar[i + 1] + btmp[i])
-                if m >= limit:
-                    cost_table[m][i][i] = ftime[i] + btime[i]
-                else:
-                    cost_table[m][i][i] = float("inf")
-
+                cost_table[m][i][i] = ftime[i] + btime[i] if m >= limit else float("inf")
         # Compute tables
         for m in range(mmax + 1):
             for d in range(1, len(chain) + 1):
@@ -244,11 +240,16 @@ class CheckpointSolverRotor(CheckpointSolverBase):
                     if m < mmin:
                         cost_table[m][i][idx] = float("inf")
                     else:
-                        leaf_checkpoints = [(j,
-                                             sum(ftime[i:j]) + cost_table[m - x[j]][j][idx] + cost_table[m][i][j - 1])
-                                            for j in range(i + 1, idx + 1)
-                                            if m >= x[j]]
-                        if leaf_checkpoints:
+                        if leaf_checkpoints := [
+                            (
+                                j,
+                                sum(ftime[i:j])
+                                + cost_table[m - x[j]][j][idx]
+                                + cost_table[m][i][j - 1],
+                            )
+                            for j in range(i + 1, idx + 1)
+                            if m >= x[j]
+                        ]:
                             best_leaf = min(leaf_checkpoints, key=lambda t: t[1])
                         else:
                             best_leaf = None
@@ -382,10 +383,9 @@ class CheckpointSolverRotor(CheckpointSolverBase):
                     ckpt_idx += 1
                     ckpt_region = [idx]
 
-            else:
-                if isinstance(op, ForwardCheck):
-                    in_ckpt = True
-                    ckpt_region.append(idx)
+            elif isinstance(op, ForwardCheck):
+                in_ckpt = True
+                ckpt_region.append(idx)
 
         # annotate the backward if there is any nested activation checkpoint
         in_recompute = False
@@ -417,13 +417,12 @@ class CheckpointSolverRotor(CheckpointSolverBase):
 
                     in_recompute = False
 
-            else:
-                if not isinstance(op, Backward):
-                    in_recompute = True
-                    ckpt_idx = 0
-                    ckpt_region = []
-                    if isinstance(op, ForwardCheck):
-                        ckpt_region.append(op.index)
+            elif not isinstance(op, Backward):
+                in_recompute = True
+                ckpt_idx = 0
+                ckpt_region = []
+                if isinstance(op, ForwardCheck):
+                    ckpt_region.append(op.index)
 
         # postprocess, make sure every activation checkpoint label in the
         # same activation checkpoint region (level = 0) has the same length

@@ -19,8 +19,7 @@ class EstimateMemory(object):
 
     def _get_meta_node_size(self, x):
         x = x.meta["tensor_meta"]
-        x = x.numel * torch.tensor([], dtype=x.dtype).element_size()
-        return x
+        return x.numel * torch.tensor([], dtype=x.dtype).element_size()
 
     def _get_output_node(self, n):
         out_size = activation_size(n.meta["fwd_out"])
@@ -46,16 +45,13 @@ class EstimateMemory(object):
             if len(user.users) == 0:
                 nodes_to_delete.append(user)
             if to_keep is not None:
-                keep_list = []
-                for n in nodes_to_delete:
-                    if n.name in to_keep:
-                        keep_list.append(n)
+                keep_list = [n for n in nodes_to_delete if n.name in to_keep]
                 for n in keep_list:
                     if n in nodes_to_delete:
                         nodes_to_delete.remove(n)
             if len(nodes_to_delete):
                 out_node = [self._get_output_node(i) for i in nodes_to_delete]
-                delete_size = sum([i[0] for i in out_node])
+                delete_size = sum(i[0] for i in out_node)
                 for i in range(len(out_node)):
                     if out_node[i][0] > 0:
                         delete_node.append(out_node[i][1][0])
@@ -79,12 +75,13 @@ class EstimateMemory(object):
         for chunk_input in chunk_inputs + chunk_inputs_non_chunk:
             chunk_input_users = chunk_input.users.keys()
             chunk_input_users_idx = [self.node_mgr.find_node_idx(i) for i in chunk_input_users]
-            if all(i <= chunk_end_idx for i in chunk_input_users_idx):
-                if chunk_input not in nodes_to_delete:
-                    nodes_to_delete.append(chunk_input)
+            if (
+                all(i <= chunk_end_idx for i in chunk_input_users_idx)
+                and chunk_input not in nodes_to_delete
+            ):
+                nodes_to_delete.append(chunk_input)
         out_node = [self._get_output_node(i) for i in nodes_to_delete]
-        delete_size = sum([i[0] for i in out_node])
-        return delete_size
+        return sum(i[0] for i in out_node)
 
     def _get_last_usr(self, nodes):
         node_to_last_use: Dict[Node, Node] = {}
@@ -112,10 +109,8 @@ class EstimateMemory(object):
                     mem += self._get_output_node_size(n)
         elif node.op == "call_module":
             for n in node.args:
-                if n in not_contiguous_list:
-                    # module will just make origin tensor to contiguous
-                    if delete:
-                        not_contiguous_list.remove(n)
+                if n in not_contiguous_list and delete:
+                    not_contiguous_list.remove(n)
         elif node.op == "call_method" and any(i in node.name for i in not_contiguous_ops):
             if node not in not_contiguous_list:
                 not_contiguous_list.append(node)
@@ -126,10 +121,7 @@ class EstimateMemory(object):
             return 1.0
         node_shape = get_node_shape(node)
         chunk_dim = chunk_node_dim[node]["chunk_dim"]
-        if chunk_dim is None:
-            return 1.0
-        else:
-            return float(chunk_size) / node_shape[chunk_dim]
+        return 1.0 if chunk_dim is None else float(chunk_size) / node_shape[chunk_dim]
 
     def _get_chunk_delete_node_size(self, user, user_to_last_uses, chunk_ratio, chunk_inputs_names):
         # if any(j in user.name for j in ['transpose', 'permute', 'view']):
@@ -139,12 +131,11 @@ class EstimateMemory(object):
         nodes_to_delete = user_to_last_uses.get(user, [])
         if len(user.users) == 0:
             nodes_to_delete.append(user)
-        delete_size = 0
-        for n in nodes_to_delete:
-            if n.name in chunk_inputs_names:
-                continue
-            delete_size += self._get_output_node_size(n) * chunk_ratio
-        return delete_size
+        return sum(
+            self._get_output_node_size(n) * chunk_ratio
+            for n in nodes_to_delete
+            if n.name not in chunk_inputs_names
+        )
 
     def _print_mem_log(self, log, nodes, title=None):
         if title:
@@ -198,7 +189,7 @@ class EstimateMemory(object):
         user_to_last_uses_no_free_var = self._get_last_usr(node_list)
         delete_free_var_from_last_use(user_to_last_uses_no_free_var)
 
-        use_chunk = True if chunk_infos is not None else False
+        use_chunk = chunk_infos is not None
         chunk_within = False
         chunk_region_idx = None
         chunk_ratio = 1    # use it to estimate chunk mem
@@ -315,7 +306,7 @@ class EstimateMemory(object):
         user_to_last_uses = self._get_last_usr(node_list)
         user_to_last_uses_no_free_var = self._get_last_usr(node_list)
         delete_free_var_from_last_use(user_to_last_uses_no_free_var)
-        for _, node in enumerate(node_list):
+        for node in node_list:
             # log active node, only effective without chunk
             self._add_active_node(node, active_node_list)
             self._remove_deactive_node(node, user_to_last_uses, active_node_list)

@@ -11,10 +11,9 @@ __all__ = ['MetaTensor']
 
 
 def set_data_ptr(x):
-    if isinstance(x, torch.Tensor):
-        if not x.data_ptr():
-            data_ptr = uuid.uuid4()
-            x.data_ptr = lambda: data_ptr
+    if isinstance(x, torch.Tensor) and not x.data_ptr():
+        data_ptr = uuid.uuid4()
+        x.data_ptr = lambda: data_ptr
 
 
 @compatibility(is_backward_compatible=False)
@@ -118,7 +117,7 @@ class MetaTensor(torch.Tensor):
 
         def replace(x):
             nonlocal fake_device
-            if isinstance(x, str) or isinstance(x, _device):
+            if isinstance(x, (str, _device)):
                 fake_device = x
                 return 'meta'
             return x

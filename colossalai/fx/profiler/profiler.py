@@ -26,9 +26,7 @@ do_not_cache = False
 
 
 def normalize_tuple(x):
-    if not isinstance(x, tuple):
-        return (x,)
-    return x
+    return x if isinstance(x, tuple) else (x, )
 
 
 def is_autogradable(x):
@@ -86,27 +84,6 @@ def _profile_concrete(target: Callable, *args, **kwargs) -> Tuple[Tuple[Any, ...
         mem_stamp0 = torch.cuda.memory_allocated()
         fwd_time0 = time.time()
         out = getattr(self_obj, target)(*args_tail, **kwargs)
-        fwd_time1 = time.time()
-        graphinfo.fwd_time = fwd_time1 - fwd_time0
-        mem_stamp1 = torch.cuda.memory_allocated()
-        graphinfo.fwd_mem_tmp = mem_stamp1 - mem_stamp0 - graphinfo.fwd_mem_out
-
-        # calculate bwd_mem_tmp & bwd_time
-        grad_tensors = tree_map(lambda x: torch.ones_like(x) if isinstance(x, torch.Tensor) else None, out)
-        torch.cuda.reset_peak_memory_stats()
-        mem_stamp0 = torch.cuda.memory_allocated()
-        bwd_time0 = time.time()
-        torch.autograd.backward(out, grad_tensors=grad_tensors)
-        bwd_time1 = time.time()
-        graphinfo.bwd_time = bwd_time1 - bwd_time0
-        mem_stamp1 = torch.cuda.max_memory_allocated()
-
-        # calculate bwd memory stats
-        # NOTE: the module should add param to bwd_mem_out for bwd_mem_tmp calculation
-        graphinfo.bwd_mem_out = activation_size(args) + activation_size(kwargs)
-        graphinfo.bwd_mem_out += parameter_size(target.__self__) if hasattr(target.__self__, "parameters") else 0
-        graphinfo.bwd_mem_tmp = mem_stamp1 - mem_stamp0 - graphinfo.bwd_mem_out
-
     else:
         # calculate fwd_mem_out
         mem_stamp0 = torch.cuda.memory_allocated()
@@ -120,26 +97,26 @@ def _profile_concrete(target: Callable, *args, **kwargs) -> Tuple[Tuple[Any, ...
         mem_stamp0 = torch.cuda.memory_allocated()
         fwd_time0 = time.time()
         out = target(*args, **kwargs)
-        fwd_time1 = time.time()
-        graphinfo.fwd_time = fwd_time1 - fwd_time0
-        mem_stamp1 = torch.cuda.memory_allocated()
-        graphinfo.fwd_mem_tmp = mem_stamp1 - mem_stamp0 - graphinfo.fwd_mem_out
+    fwd_time1 = time.time()
+    graphinfo.fwd_time = fwd_time1 - fwd_time0
+    mem_stamp1 = torch.cuda.memory_allocated()
+    graphinfo.fwd_mem_tmp = mem_stamp1 - mem_stamp0 - graphinfo.fwd_mem_out
 
-        # calculate bwd_mem_tmp & bwd_time
-        grad_tensors = tree_map(lambda x: torch.ones_like(x) if isinstance(x, torch.Tensor) else None, out)
-        torch.cuda.reset_peak_memory_stats()
-        mem_stamp0 = torch.cuda.memory_allocated()
-        bwd_time0 = time.time()
-        torch.autograd.backward(out, grad_tensors=grad_tensors)
-        bwd_time1 = time.time()
-        graphinfo.bwd_time = bwd_time1 - bwd_time0
-        mem_stamp1 = torch.cuda.max_memory_allocated()
+    # calculate bwd_mem_tmp & bwd_time
+    grad_tensors = tree_map(lambda x: torch.ones_like(x) if isinstance(x, torch.Tensor) else None, out)
+    torch.cuda.reset_peak_memory_stats()
+    mem_stamp0 = torch.cuda.memory_allocated()
+    bwd_time0 = time.time()
+    torch.autograd.backward(out, grad_tensors=grad_tensors)
+    bwd_time1 = time.time()
+    graphinfo.bwd_time = bwd_time1 - bwd_time0
+    mem_stamp1 = torch.cuda.max_memory_allocated()
 
-        # calculate bwd memory stats
-        # NOTE: the module should add param to bwd_mem_out for bwd_mem_tmp calculation
-        graphinfo.bwd_mem_out = activation_size(args) + activation_size(kwargs)
-        graphinfo.bwd_mem_out += parameter_size(target.__self__) if hasattr(target.__self__, "parameters") else 0
-        graphinfo.bwd_mem_tmp = mem_stamp1 - mem_stamp0 - graphinfo.bwd_mem_out
+    # calculate bwd memory stats
+    # NOTE: the module should add param to bwd_mem_out for bwd_mem_tmp calculation
+    graphinfo.bwd_mem_out = activation_size(args) + activation_size(kwargs)
+    graphinfo.bwd_mem_out += parameter_size(target.__self__) if hasattr(target.__self__, "parameters") else 0
+    graphinfo.bwd_mem_tmp = mem_stamp1 - mem_stamp0 - graphinfo.bwd_mem_out
 
     return tree_map(detach_variables, out), graphinfo
 
@@ -167,12 +144,8 @@ def _profile_meta(target: Callable, *args, **kwargs) -> Tuple[Tuple[Any, ...], G
         Phase.BACKWARD: 0,
     }
 
-    # FlopTensor not only get the flop statistics of a single node,
-    # it also build a full autograd graph for this node.
-    # This makes sure we can analyze the dependencies of memory, and
-    # decide which forward intermediate results should be kept until
-    # backward is executed.
-    # Hopefully, this attempt will provide a better estimation of memory.
+
+
     class FlopTensor(MetaTensor):
 
         _node: Node = None
@@ -196,9 +169,17 @@ def _profile_meta(target: Callable, *args, **kwargs) -> Tuple[Tuple[Any, ...], G
             # super-dainiu: in `nn.MultiheadAttention` this weird thing occurs,
             # i.e. `Phase.PLACEHOLDER` tensors are aliased and saved during
             # `Phase.FORWARD`
-            if phase == Phase.FORWARD:
-                if all(map(partial(is_phase, phase=Phase.PLACEHOLDER), node.all_input_nodes)) and func in ALIAS_ATEN:
-                    node.meta['phase'] = Phase.PLACEHOLDER
+            if (
+                phase == Phase.FORWARD
+                and all(
+                    map(
+                        partial(is_phase, phase=Phase.PLACEHOLDER),
+                        node.all_input_nodes,
+                    )
+                )
+                and func in ALIAS_ATEN
+            ):
+                node.meta['phase'] = Phase.PLACEHOLDER
 
             # TODO(yby): specify `saved_tensors` for backward memory estimation
             node.meta['saved_tensor'] = []
@@ -213,6 +194,7 @@ def _profile_meta(target: Callable, *args, **kwargs) -> Tuple[Tuple[Any, ...], G
 
             out = tree_map(wrap, out)
             return out
+
 
     def wrap(x):
         if isinstance(x, torch.Tensor):
@@ -232,7 +214,7 @@ def _profile_meta(target: Callable, *args, **kwargs) -> Tuple[Tuple[Any, ...], G
 
     def pack(x):
         global cache, do_not_cache
-        if isinstance(x, FlopTensor) and not x._tensor.data_ptr() in cache:
+        if isinstance(x, FlopTensor) and x._tensor.data_ptr() not in cache:
             tensor = x._tensor.detach()
             tensor.data_ptr = x._tensor.data_ptr
             x._node.meta['saved_tensor'] += [tensor]

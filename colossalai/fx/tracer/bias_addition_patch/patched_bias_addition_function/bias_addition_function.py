@@ -66,8 +66,7 @@ class BiasAdditionFunc(ABC):
             coefficent,
         )
         node_kwargs = {}
-        mul_proxy = self.tracer.create_proxy(node_kind, node_target, node_args, node_kwargs)
-        return mul_proxy
+        return self.tracer.create_proxy(node_kind, node_target, node_args, node_kwargs)
 
 
 class LinearBasedBiasFunc(BiasAdditionFunc):
@@ -88,8 +87,7 @@ class LinearBasedBiasFunc(BiasAdditionFunc):
         node_args = (input_proxy, other_proxy)
         # non-bias linear does not have any kwargs
         node_kwargs = {}
-        non_bias_func_proxy = self.tracer.create_proxy(node_kind, node_target, node_args, node_kwargs)
-        return non_bias_func_proxy
+        return self.tracer.create_proxy(node_kind, node_target, node_args, node_kwargs)
 
     def create_bias_addition_proxy(self, non_bias_func_proxy, bias_proxy):
         """
@@ -99,8 +97,9 @@ class LinearBasedBiasFunc(BiasAdditionFunc):
         bias_add_node_kind = 'call_function'
         bias_add_node_target = operator.add
         bias_add_args = (non_bias_func_proxy, bias_proxy)
-        bias_add_proxy = self.tracer.create_proxy(bias_add_node_kind, bias_add_node_target, tuple(bias_add_args), {})
-        return bias_add_proxy
+        return self.tracer.create_proxy(
+            bias_add_node_kind, bias_add_node_target, tuple(bias_add_args), {}
+        )
 
 
 func_to_func_dict = {

@@ -27,7 +27,7 @@ def activation_size(out: Union[torch.Tensor, Dict, List, Tuple, int]) -> int:
     elif isinstance(out, dict):
         value_list = [v for _, v in out.items()]
         act_size += activation_size(value_list)
-    elif isinstance(out, tuple) or isinstance(out, list) or isinstance(out, set):
+    elif isinstance(out, (tuple, list, set)):
         for element in out:
             act_size += activation_size(element)
     return act_size
@@ -43,10 +43,10 @@ def parameter_size(mod: torch.nn.Module) -> int:
     Returns:
         int: The parameter size, unit is byte.
     """
-    param_size = 0
-    for param in mod.parameters():
-        param_size += param.numel() * torch.tensor([], dtype=param.dtype).element_size()
-    return param_size
+    return sum(
+        param.numel() * torch.tensor([], dtype=param.dtype).element_size()
+        for param in mod.parameters()
+    )
 
 
 def is_inplace(n: Node):

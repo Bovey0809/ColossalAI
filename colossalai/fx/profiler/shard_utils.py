@@ -65,9 +65,7 @@ def calculate_fwd_tmp(n: Node) -> int:
             return type(n.graph.owning_module.get_submodule(n.target)) in OUTPUT_SAVED_MOD
         return False
 
-    if not is_relu_like_node(n):
-        return activation_size(n.meta["fwd_tmp"])
-    return 0
+    return 0 if is_relu_like_node(n) else activation_size(n.meta["fwd_tmp"])
 
 
 @compatibility(is_backward_compatible=False)
@@ -85,7 +83,7 @@ def calculate_fwd_out(n: Node) -> int:
     def intersect(a, b):
         return {k: a[k] for k in a if k in b}
 
-    fwd_in = dict()
+    fwd_in = {}
     for u in n.users:
         fwd_in.update({x.data_ptr(): x for x in u.meta["fwd_in"] if isinstance(x, torch.Tensor)})
     fwd_out = {x.data_ptr(): x for x in n.meta["fwd_out"] if isinstance(x, torch.Tensor)}

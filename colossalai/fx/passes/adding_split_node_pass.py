@@ -20,10 +20,7 @@ def avgcompute_split_pass(gm: torch.fx.GraphModule, pp_size: int):
     if 'tensor_meta' not in check_node.meta:
         return balanced_split_pass(gm, pp_size)
 
-    total_fwd_flop = 0
-    for node in mod_graph.nodes:
-        total_fwd_flop += node.fwd_flop
-
+    total_fwd_flop = sum(node.fwd_flop for node in mod_graph.nodes)
     partition_flop = total_fwd_flop // pp_size
     accumulate_fwd_flop = 0
     for node in mod_graph.nodes:
@@ -72,9 +69,9 @@ def balanced_split_pass(gm: torch.fx.GraphModule, pp_size: int):
     In balanced_split_pass, we split module by the size of parameters(weights+bias).
     """
     mod_graph = gm.graph
-    total_param_amount = 0
-    for param in mod_graph.owning_module.parameters():
-        total_param_amount += param.numel()
+    total_param_amount = sum(
+        param.numel() for param in mod_graph.owning_module.parameters()
+    )
     params_per_partition = total_param_amount // pp_size
     accumulate_param_amount = 0
     for node in mod_graph.nodes:
@@ -125,10 +122,7 @@ def balanced_split_pass_v2(gm: torch.fx.GraphModule, pp_size: int):
     if 'tensor_meta' not in check_node.meta:
         return balanced_split_pass(gm, pp_size)
 
-    total_element_size = 0
-    for node in mod_graph.nodes:
-        total_element_size += node.node_size
-
+    total_element_size = sum(node.node_size for node in mod_graph.nodes)
     partition_size = total_element_size // pp_size
     accumulate_node_size = 0
     for node in mod_graph.nodes:

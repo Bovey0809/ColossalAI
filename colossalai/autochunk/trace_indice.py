@@ -98,9 +98,8 @@ class TraceIndice(object):
         # add dim to cur new source
         if node_from_idx not in node_to_trace_source[node_to_dim]:
             node_to_trace_source[node_to_dim][node_from_idx] = [node_from_dim]
-        else:
-            if node_from_dim not in node_to_trace_source[node_to_dim][node_from_idx]:
-                node_to_trace_source[node_to_dim][node_from_idx].append(node_from_dim)
+        elif node_from_dim not in node_to_trace_source[node_to_dim][node_from_idx]:
+            node_to_trace_source[node_to_dim][node_from_idx].append(node_from_dim)
         # update inputs source
         for node_idx, node_dim in node_from_trace_source[node_from_dim].items():
             if node_idx not in node_to_trace_source[node_to_dim]:
@@ -154,7 +153,7 @@ class TraceIndice(object):
         """
         inheirt indice from node without init
         """
-        if exclude == None:
+        if exclude is None:
             exclude = []
         else:
             exclude = [self._transform_indice(node_to, i) for i in exclude]
@@ -194,8 +193,7 @@ class TraceIndice(object):
             compute (list): computed idx of the node.
         """
         node_idx = self.node_mgr.find_node_idx(node)
-        node_dict = self.indice_trace_list[node_idx]
-        return node_dict
+        return self.indice_trace_list[node_idx]
 
     def _find_source_trace_from_node(self, node: Node) -> List:
         """
@@ -243,7 +241,7 @@ class TraceIndice(object):
             node (node)
             node_idx (int)
         """
-        if input_node == None:
+        if input_node is None:
             input_node = find_first_tensor_arg(node)
         self._inherit_all_indice(input_node, node)
 
@@ -258,9 +256,7 @@ class TraceIndice(object):
         shape = node.meta["tensor_meta"].shape
         if shape is None:
             return
-        new_trace = []
-        for _ in shape:
-            new_trace.append(self._add_indice())
+        new_trace = [self._add_indice() for _ in shape]
         self.indice_trace_list[node_idx]["indice"] = new_trace
 
     def _assign_transpose_indice(self, node: Node, node_idx: int) -> None:
@@ -492,8 +488,7 @@ class TraceIndice(object):
 
         all_index = []
         for i in left:
-            for c in i:
-                all_index.append(c)
+            all_index.extend(iter(i))
         all_index = set(all_index)
 
         for right_idx, right_indice in enumerate(right):
@@ -615,7 +610,7 @@ class TraceIndice(object):
         flag = False
         for node_arg in node_args:
             node_arg_str = str(node_arg)
-            if any(i == node_arg_str for i in ["None", "Ellipsis"]):
+            if node_arg_str in {"None", "Ellipsis"}:
                 flag = True
                 break
             if "slice" in node_arg_str:
@@ -628,33 +623,31 @@ class TraceIndice(object):
         node_shape = get_node_shape(node)
         origin_idx_count = 0
         new_idx_count = 0
-        new_dim_num = sum([1 if str(i) == "None" else 0 for i in node_args])
+        new_dim_num = sum(1 if str(i) == "None" else 0 for i in node_args)
         for _ in range(new_dim_num):
             self._del_dim(node_idx, 0)
-        delete_dim_num = sum([1 if str(i) == "0" else 0 for i in node_args])
+        delete_dim_num = sum(1 if str(i) == "0" else 0 for i in node_args)
         for _ in range(delete_dim_num):
             self._add_dim(node_idx, 0)
         self._assign_indice_as_input(node, node_idx)
 
-        for _, node_arg in enumerate(node_args):
+        for node_arg in node_args:
             node_arg_str = str(node_arg)
             # Ellipsis means [..., ]
-            if "Ellipsis" == node_arg_str:
+            if node_arg_str == "Ellipsis":
                 shape_gap = len(node_shape) - len(node_args) + 1
                 origin_idx_count += shape_gap
                 new_idx_count += shape_gap
-            # slice(None, None, None) means all indexes
             elif "slice" in node_arg_str:
-                if "slice(None, None, None)" != node_arg_str:
+                if node_arg_str != "slice(None, None, None)":
                     self._del_dim(node_idx, new_idx_count)
                     self._add_dim(node_idx, new_idx_count)
                 origin_idx_count += 1
                 new_idx_count += 1
-            # None means a new dim
-            elif "None" == node_arg_str:
+            elif node_arg_str == "None":
                 self._add_dim(node_idx, new_idx_count)
                 new_idx_count += 1
-            elif "0" == node_arg_str:
+            elif node_arg_str == "0":
                 self._del_dim(node_idx, new_idx_count)
                 origin_idx_count += 1
             else:
@@ -717,7 +710,9 @@ class TraceIndice(object):
             dim_from = []
             dim_to = []
         else:
-            raise NotImplementedError("shape" + str(origin_shape) + "and" + str(target_shape) + "view not implemented")
+            raise NotImplementedError(
+                f"shape{str(origin_shape)}and{target_shape}view not implemented"
+            )
 
         # get new indice
         origin_trace = self._find_indice_trace_from_node(origin_node)
@@ -735,16 +730,23 @@ class TraceIndice(object):
             if (view_dict["idx_to"] == idx_from and view_dict["dim_to"] == dim_from
                     and view_dict["dim_from"] == dim_to):
                 # inheirt indice from current node
-                if len_diff == 1:
-                    if origin_shape[dim_from[0]] == 1:
-                        self._inherit_indice(origin_node, dim_from[1], node, dim_to[0], init=False)
-                    elif origin_shape[dim_from[1]] == 1:
-                        self._inherit_indice(origin_node, dim_from[0], node, dim_to[0], init=False)
-                elif len_diff == -1:
-                    if target_shape[dim_to[0]] == 1:
-                        self._inherit_indice(origin_node, dim_from[0], node, dim_to[1], init=False)
-                    elif target_shape[dim_to[1]] == 1:
-                        self._inherit_indice(origin_node, dim_from[0], node, dim_to[0], init=False)
+                if len_diff == 1 and origin_shape[dim_from[0]] == 1:
+                    self._inherit_indice(origin_node, dim_from[1], node, dim_to[0], init=False)
+                elif (
+                    len_diff == 1
+                    and origin_shape[dim_from[1]] == 1
+                    or len_diff != 1
+                    and len_diff == -1
+                    and target_shape[dim_to[0]] != 1
+                    and target_shape[dim_to[1]] == 1
+                ):
+                    self._inherit_indice(origin_node, dim_from[0], node, dim_to[0], init=False)
+                elif (
+                    len_diff != 1
+                    and (len_diff != -1 or target_shape[dim_to[0]] == 1)
+                    and len_diff == -1
+                ):
+                    self._inherit_indice(origin_node, dim_from[0], node, dim_to[1], init=False)
                 # inherid indice from input node of last view
                 for dim_to_i in dim_to:
                     self._inherit_indice(view_node.args[0], dim_to_i, node, dim_to_i, init=False)
@@ -795,71 +797,88 @@ class TraceIndice(object):
             if node.op == "placeholder":
                 self._assign_all_indice(node, idx)
             elif node.op == "call_method":
-                if "transpose" == node_name:
+                if node_name == "transpose":
                     self._assign_transpose_indice(node, idx)
-                elif "permute" == node_name:
+                elif node_name == "permute":
                     self._assign_permute_indice(node, idx)
-                elif "view" == node_name or "reshape" == node_name:
+                elif node_name in ["view", "reshape"]:
                     self._assign_view_reshape_indice(node, idx)
-                elif "unsqueeze" == node_name:
+                elif node_name == "unsqueeze":
                     self._assign_unsqueeze_indice(node, idx)
-                elif "split" == node_name:
+                elif node_name == "split":
                     self._assign_split_indice(node, idx)
-                elif any(i == node_name for i in ["to", "contiguous", "clone", "type", "float"]):
+                elif node_name in ["to", "contiguous", "clone", "type", "float"]:
                     self._assgin_no_change_indice(node, idx)
-                elif "new_ones" == node_name:
+                elif node_name == "new_ones":
                     self._assign_all_indice(node, idx)
-                elif any(i == node_name for i in ["size"]):
+                elif node_name in ["size"]:
                     continue
                 else:
                     raise NotImplementedError(node_name, "method not implemented yet!")
             elif node.op == "call_function":
-                if "linear" == node_name:
+                if node_name == "linear":
                     self._assign_linear_indice(node, idx)
-                elif "cat" == node_name:
+                elif node_name == "cat":
                     self._assign_cat_indice(node, idx)
-                elif any(n == node_name for n in ["matmul", "bmm"]):
+                elif node_name in ["matmul", "bmm"]:
                     self._assign_matmul_indice(node, idx)
-                elif "softmax" == node_name:
+                elif node_name == "softmax":
                     self._assign_softmax_indice(node, idx)
-                elif any(n == node_name for n in [
-                        "mul", "add", "sigmoid", "relu", "sub", "truediv", "pow", "dropout", "where", "tanh", "exp",
-                        "sin", "cos"
-                ]):
+                elif node_name in [
+                    "mul",
+                    "add",
+                    "sigmoid",
+                    "relu",
+                    "sub",
+                    "truediv",
+                    "pow",
+                    "dropout",
+                    "where",
+                    "tanh",
+                    "exp",
+                    "sin",
+                    "cos",
+                ]:
                     self._assign_elementwise_indice(node, idx)
-                elif "einsum" == node_name:
+                elif node_name == "einsum":
                     self._assign_einsum_indice(node, idx)
-                elif "sum" == node_name:
+                elif node_name == "sum":
                     self._assign_sum_indice(node, idx)
-                elif "layer_norm" == node_name:
+                elif node_name == "layer_norm":
                     self._assign_layernorm_indice(node, idx)
-                elif "getitem" == node_name:
+                elif node_name == "getitem":
                     self._assign_getitem_indice(node, idx)
-                elif "addmm" == node_name:
+                elif node_name == "addmm":
                     self._assign_addmm_indice(node, idx)
-                elif "baddbmm" == node_name:
+                elif node_name == "baddbmm":
                     self._assign_baddbmm_indice(node, idx)
-                elif "interpolate" == node_name:
+                elif node_name == "interpolate":
                     self._assign_interpolate_indice(node, idx)
-                elif any(i == node_name for i in ["arange", "ones", "ones_like", "tensor", "empty"]):
+                elif node_name in ["arange", "ones", "ones_like", "tensor", "empty"]:
                     self._assign_all_indice(node, idx)
-                elif any(i == node_name for i in ["getattr", "eq", "_assert_is_none", "_assert", "finfo"]):
+                elif node_name in [
+                    "getattr",
+                    "eq",
+                    "_assert_is_none",
+                    "_assert",
+                    "finfo",
+                ]:
                     continue
                 else:
                     raise NotImplementedError(node_name, "function not implemented yet!")
             elif node.op == "call_module":
                 node_name = get_module_node_name(node)
-                if "layernorm" == node_name:
+                if node_name == "layernorm":
                     self._assign_layernorm_indice(node, idx)
-                elif "groupnorm" == node_name:
+                elif node_name == "groupnorm":
                     self._assign_groupnorm_indice(node, idx)
-                elif "embedding" == node_name:
+                elif node_name == "embedding":
                     self._assign_embedding_indice(node, idx)
-                elif "linear" == node_name:
+                elif node_name == "linear":
                     self._assign_linear_indice(node, idx)
-                elif "conv2d" == node_name:
+                elif node_name == "conv2d":
                     self._assign_conv2d_indice(node, idx)
-                elif any(n == node_name for n in ["sigmoid", "dropout", "relu", "silu"]):
+                elif node_name in ["sigmoid", "dropout", "relu", "silu"]:
                     self._assign_elementwise_indice(node, idx)
                 else:
                     raise NotImplementedError(node_name, "module not implemented yet!")

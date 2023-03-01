@@ -70,11 +70,11 @@ def flat_list(inputs: Any) -> List:
     """
     flat a list by recursion
     """
-    if not (isinstance(inputs, list) or isinstance(inputs, set) or isinstance(inputs, tuple)):
+    if not (isinstance(inputs, (list, set, tuple))):
         return [inputs]
     res = []
     for i in inputs:
-        if isinstance(i, list) or isinstance(i, set) or isinstance(i, tuple):
+        if isinstance(i, (list, set, tuple)):
             res.extend(flat_list(i))
         else:
             res.append(i)
@@ -99,7 +99,7 @@ def is_non_compute_node(node: Node) -> bool:
             return False
         node_args = flat_list(node.args[1:])
         for node_arg in node_args:
-            if any(i == str(node_arg) for i in ["None", "Ellipsis"]):
+            if str(node_arg) in {"None", "Ellipsis"}:
                 return False
             if "slice" in str(node_arg):
                 return False
@@ -118,15 +118,11 @@ def get_node_shape(node: Node) -> List:
 def is_non_memory_node(node: Node) -> bool:
     if "getitem" in node.name:
         return True
-    if "output" in node.op:
-        return True
-    return is_non_compute_node(node)
+    return True if "output" in node.op else is_non_compute_node(node)
 
 
 def is_non_compute_node_except_placeholder(node: Node) -> bool:
-    if "placeholder" in node.op:
-        return False
-    return is_non_compute_node(node)
+    return False if "placeholder" in node.op else is_non_compute_node(node)
 
 
 def is_non_compute_node_except_placeholder_output(node: Node) -> bool:
@@ -139,7 +135,7 @@ def find_node_idx(name: str, nodes_list: List) -> int:
     for idx, node in enumerate(nodes_list):
         if node.name == name:
             return idx
-    raise RuntimeError("name %s not found in node list" % name)
+    raise RuntimeError(f"name {name} not found in node list")
 
 
 def delete_free_var_from_last_use(user_to_last_uses: Dict) -> None:
@@ -225,11 +221,7 @@ def find_tensor_node(node_list: List[Node]) -> List[Node]:
     """
     find tensor nodes from a node list
     """
-    out = []
-    for node in node_list:
-        if get_node_shape(node) is not None:
-            out.append(node)
-    return out
+    return [node for node in node_list if get_node_shape(node) is not None]
 
 
 def find_tensor_shape_node(node_list: List[Node]) -> List[Node]:

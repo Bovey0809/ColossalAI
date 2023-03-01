@@ -19,9 +19,7 @@ class SumHandler(NodeHandler):
 
     def get_strategy_generator(self) -> List[StrategyGenerator]:
         op_data_mapping = self.get_operation_data_mapping()
-        generators = []
-        generators.append(SumGenerator(op_data_mapping, self.device_mesh, self.node.args[0]))
-        return generators
+        return [SumGenerator(op_data_mapping, self.device_mesh, self.node.args[0])]
 
     def get_operation_data_mapping(self) -> Dict[str, OperationData]:
         # check if the input operand is a parameter
@@ -57,12 +55,12 @@ class SumHandler(NodeHandler):
         sum_mapping_dict = {}
         if 'keepdim' in self.node.kwargs and self.node.kwargs['keepdim']:
             for i in range(num_dims):
-                sum_mapping_dict.update({i: i})
+                sum_mapping_dict[i] = i
         else:
             output_index = 0
             for i in range(num_dims):
                 if i not in sum_dims:
-                    sum_mapping_dict.update({i: output_index})
+                    sum_mapping_dict[i] = output_index
                     output_index += 1
             assert output_index == self.node._meta_data.dim()
 
@@ -72,10 +70,8 @@ class SumHandler(NodeHandler):
         output_data = self.node._meta_data
         physical_output_operand = OperationData(name=str(self.node), type=OperationDataType.OUTPUT, data=output_data)
 
-        mapping = {
+        return {
             "input": physical_input_operand,
             "sum_info": physical_shape_operand,
-            "output": physical_output_operand
+            "output": physical_output_operand,
         }
-
-        return mapping

@@ -85,8 +85,7 @@ class SearchChunk(object):
 
     def _find_peak_node(self, mem_peak: List) -> int:
         max_value = max(mem_peak)
-        max_idx = mem_peak.index(max_value)
-        return max_idx
+        return mem_peak.index(max_value)
 
     def _get_free_var_idx(self) -> List:
         """
@@ -95,11 +94,11 @@ class SearchChunk(object):
         Returns:
             free_var_idx (List): all indexs of free vars
         """
-        free_var_idx = []
-        for idx, n in enumerate(self.node_mgr.get_node_list()):
-            if n.op == "placeholder" and get_node_shape(n) is not None:
-                free_var_idx.append(idx)
-        return free_var_idx
+        return [
+            idx
+            for idx, n in enumerate(self.node_mgr.get_node_list())
+            if n.op == "placeholder" and get_node_shape(n) is not None
+        ]
 
     def _search_max_chunk_region(self, active_node: List, peak_node_idx: int, chunk_regions: List = None) -> Tuple:
         """
@@ -170,9 +169,9 @@ class SearchChunk(object):
                 region = i["region"]
                 if chunk_region_start >= region[0] and chunk_region_end <= region[1]:
                     return None
-                elif (region[0] <= chunk_region_start <= region[1] and chunk_region_end > region[1]):
+                elif region[0] <= chunk_region_start <= region[1]:
                     chunk_region_start = region[1] + 1
-                elif (region[0] <= chunk_region_end <= region[1] and chunk_region_start < region[0]):
+                elif region[0] <= chunk_region_end <= region[1]:
                     chunk_region_end = region[0] - 1
         return chunk_region_start, chunk_region_end
 
@@ -228,11 +227,13 @@ class SearchChunk(object):
         possible_chunk_region = []
         output_trace = copy.deepcopy(self.trace_indice.indice_trace_list)
         input_trace = []    # trace of a node's input nodes
-        for _, n in enumerate(self.node_mgr.get_node_list()):
-            cur_trace = {}
-            for arg in n.args:
-                if type(arg) == type(n) and not is_non_compute_node_except_placeholder(arg):
-                    cur_trace[arg] = self.trace_indice._find_trace_from_node(arg)
+        for n in self.node_mgr.get_node_list():
+            cur_trace = {
+                arg: self.trace_indice._find_trace_from_node(arg)
+                for arg in n.args
+                if type(arg) == type(n)
+                and not is_non_compute_node_except_placeholder(arg)
+            }
             input_trace.append(cur_trace)
 
         for start_idx in range(max_chunk_region[0], peak_node + 1):
@@ -272,7 +273,7 @@ class SearchChunk(object):
         """
         peak_node = self._find_peak_node(mem_peak)
         max_chunk_region = self._search_max_chunk_region(active_node, peak_node, chunk_infos)
-        if max_chunk_region == None:
+        if max_chunk_region is None:
             return None
         possible_chunk_regions = self._search_possible_chunk_regions(max_chunk_region, peak_node)
         best_chunk_region = self.select_chunk._select_best_chunk_region(possible_chunk_regions, chunk_infos, peak_node,

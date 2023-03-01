@@ -44,7 +44,7 @@ class MoeContext(metaclass=SingletonMeta):
         self.use_kernel_optim = True
 
         self.has_setup = False
-        self._parallel_info_dict = dict()
+        self._parallel_info_dict = {}
 
     @property
     def parallel_info_dict(self):
@@ -93,7 +93,7 @@ class MoeContext(metaclass=SingletonMeta):
         lt_flag = self.max_ep_size % num_experts == 0    # check whether num_experts is less
 
         assert gt_flag or lt_flag, "Automatic experts placement dose not not support expert number" \
-                                   " is not a multiple of ep size or vice versa."
+                                       " is not a multiple of ep size or vice versa."
 
         # If the number of experts is greater than maximum expert parallel size. a.k.a ep_size,
         # there are multiple experts in each GPU and each GPU has different experts
@@ -108,7 +108,7 @@ class MoeContext(metaclass=SingletonMeta):
 
         # Don't forget to multiply minimum data parallel size
         dp_size *= self.min_dp_size
-        if not (ep_size in self.parallel_info_dict):
+        if ep_size not in self.parallel_info_dict:
             self.parallel_info_dict[ep_size] = MoeParallelInfo(ep_size, dp_size)
 
         return num_local_experts, self.parallel_info_dict[ep_size]

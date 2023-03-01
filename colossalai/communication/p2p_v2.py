@@ -70,9 +70,7 @@ def _cuda_safe_tensor_to_object(tensor: torch.Tensor, tensor_size: torch.Size) -
 
     io_bytes = io.BytesIO(buf)
     byte_pickler = _unpickler(io_bytes)
-    unpickle = byte_pickler.load()
-
-    return unpickle
+    return byte_pickler.load()
 
 
 def _broadcast_object_list(object_list: List[Any], src: int, dst: int, device=None):
@@ -105,14 +103,14 @@ def _broadcast_object_list(object_list: List[Any], src: int, dst: int, device=No
     is_nccl_backend = c10d._check_for_nccl_backend(group)
     current_device = None
 
-    if device is not None:
-        if is_nccl_backend and device.type != "cuda":
-            raise ValueError("device type must be cuda for nccl backend")
-        current_device = device
-    else:
+    if device is None:
         current_device = torch.device("cpu")
         if is_nccl_backend:
             current_device = torch.device("cuda", torch.cuda.current_device())
+    elif is_nccl_backend and device.type != "cuda":
+        raise ValueError("device type must be cuda for nccl backend")
+    else:
+        current_device = device
     if is_nccl_backend:
         object_sizes_tensor = object_sizes_tensor.to(current_device)
 
@@ -133,10 +131,10 @@ def _broadcast_object_list(object_list: List[Any], src: int, dst: int, device=No
 
     c10d.broadcast(object_tensor, src=src, group=group, async_op=False)
 
-    # Deserialize objects using their stored sizes.
-    offset = 0
-
     if local_rank != src:
+        # Deserialize objects using their stored sizes.
+        offset = 0
+
         for i, obj_size in enumerate(object_sizes_tensor):
             obj_view = object_tensor[offset:offset + obj_size]
             obj_view = obj_view.type(torch.uint8)
@@ -213,13 +211,10 @@ def recv_forward(prev_rank: int = None) -> Any:
         Any: The input tensor or input tensor list.
     """
     if gpc.is_pipeline_first_stage():
-        input_tensor = None
-    else:
-        if prev_rank is None:
-            prev_rank = gpc.get_prev_global_rank(ParallelMode.PIPELINE)
-        input_tensor = _recv_object(prev_rank)
-
-    return input_tensor
+        return None
+    if prev_rank is None:
+        prev_rank = gpc.get_prev_global_rank(ParallelMode.PIPELINE)
+    return _recv_object(prev_rank)
 
 
 def recv_backward(next_rank: int = None) -> Any:
@@ -233,13 +228,10 @@ def recv_backward(next_rank: int = None) -> Any:
         Any: The input gradient tensor or gradident tensor list.
     """
     if gpc.is_pipeline_last_stage():
-        output_tensor_grad = None
-    else:
-        if next_rank is None:
-            next_rank = gpc.get_next_global_rank(ParallelMode.PIPELINE)
-        output_tensor_grad = _recv_object(next_rank)
-
-    return output_tensor_grad
+        return None
+    if next_rank is None:
+        next_rank = gpc.get_next_global_rank(ParallelMode.PIPELINE)
+    return _recv_object(next_rank)
 
 
 def send_forward(output_object: Any, next_rank: int = None) -> None:

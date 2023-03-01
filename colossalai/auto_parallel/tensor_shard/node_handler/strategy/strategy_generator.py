@@ -110,11 +110,7 @@ class StrategyGenerator(ABC):
         """
         Convert the key of the dictionary from the operation data name to an OperationData object.
         """
-        results = {}
-        for k, v in mapping.items():
-            op_data = self.op_data[k]
-            results[op_data] = v
-        return results
+        return {self.op_data[k]: v for k, v in mapping.items()}
 
     def get_communication_spec(self, sharding_spec: ShardingSpec, communication_pattern: CollectiveCommPattern,
                                logical_process_axis: Union[int, List[int]]):

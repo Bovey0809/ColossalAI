@@ -27,9 +27,11 @@ def has_inf_or_nan(tensor):
             raise
         return True
     else:
-        if tensor_sum == float('inf') or tensor_sum == -float('inf') or tensor_sum != tensor_sum:
-            return True
-        return False
+        return (
+            tensor_sum == float('inf')
+            or tensor_sum == -float('inf')
+            or tensor_sum != tensor_sum
+        )
 
 
 def zero_gard_by_list(tensor_list: List[Tensor], set_to_none: bool = True) -> None:

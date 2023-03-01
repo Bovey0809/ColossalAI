@@ -39,10 +39,7 @@ def get_leaf(graph: Graph):
         if node.op == 'output':
             map_arg(node.args, lambda n: input_nodes.setdefault(n))
             map_arg(node.kwargs, lambda n: input_nodes.setdefault(n))
-    placeholder_nodes = []
-    for node in input_nodes.keys():
-        if node.op == 'placeholder':
-            placeholder_nodes.append(node)
+    placeholder_nodes = [node for node in input_nodes if node.op == 'placeholder']
     for node in placeholder_nodes:
         input_nodes.pop(node)
     return list(input_nodes.keys())
@@ -87,11 +84,7 @@ def get_all_consumers(graph: Graph, node: Node):
     Returns:
         List of ``Nodes`` that node appear in these nodes ``args`` and ``kwargs``.
     """
-    consumer_list = []
-    for n in graph.nodes:
-        if node in n.all_input_nodes:
-            consumer_list.append(n)
-    return consumer_list
+    return [n for n in graph.nodes if node in n.all_input_nodes]
 
 
 def assign_bfs_level_to_nodes(graph: Graph):
@@ -167,6 +160,5 @@ def get_node_module(node) -> torch.nn.Module:
 
     assert node.graph.owning_module is not None, 'Cannot find the owning_module for node.graph, please make sure the graph is associated with a GraphModule object'
     assert node.op == 'call_module', f'Expected node.op to be call_module, but found {node.op}'
-    module = node.graph.owning_module.get_submodule(node.target)
-    return module
+    return node.graph.owning_module.get_submodule(node.target)
 

@@ -28,9 +28,7 @@ def torch_matmul(input, other, *, out=None):
             shape2.append(1)
         shape1 = [-1] * (max_length - d1) + list(input.shape)
         shape2 = [-1] * (max_length - d2) + list(other.shape)
-        shape = []
-        for i in range(max_length):
-            shape.append(max(shape1[i], shape2[i]))
+        shape = [max(shape1[i], shape2[i]) for i in range(max_length)]
         shape[-2] = shape1[-2]
         shape[-1] = shape2[-1]
         if d1 == 1:

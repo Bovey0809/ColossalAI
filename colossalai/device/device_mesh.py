@@ -239,8 +239,13 @@ class FlattenDeviceMesh(DeviceMesh):
             # return {0: [0, 4, 1, 5, 2, 6, 3, 7], 1: [0, 1, 2, 3, 4, 5, 6, 7]}
         '''
         num_devices = reduce(operator.mul, self.mesh_shape, 1)
-        process_numbers_dict = {}
-        process_numbers_dict[0] = torch.arange(num_devices).reshape(self.mesh_shape).transpose(1, 0).flatten().tolist()
+        process_numbers_dict = {
+            0: torch.arange(num_devices)
+            .reshape(self.mesh_shape)
+            .transpose(1, 0)
+            .flatten()
+            .tolist()
+        }
         process_numbers_dict[1] = torch.arange(num_devices).reshape(self.mesh_shape).flatten().tolist()
         return process_numbers_dict
 

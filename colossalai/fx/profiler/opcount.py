@@ -42,8 +42,7 @@ def matmul_flop_jit(inputs: List[Any], outputs: List[Any]) -> Number:
 
         # expand the shape of the vector to [batch size, 1]
         input_shapes[-1] = torch.Size([input_shapes[-1][-1], 1])
-    flops = reduce(operator.mul, input_shapes[0]) * input_shapes[-1][-1]
-    return flops
+    return reduce(operator.mul, input_shapes[0]) * input_shapes[-1][-1]
 
 
 def addmm_flop_jit(inputs: List[Any], outputs: List[Any]) -> Number:
@@ -59,8 +58,7 @@ def addmm_flop_jit(inputs: List[Any], outputs: List[Any]) -> Number:
     assert len(input_shapes[1]) == 2, input_shapes[1]
     batch_size, input_dim = input_shapes[0]
     output_dim = input_shapes[1][1]
-    flops = batch_size * input_dim * output_dim
-    return flops
+    return batch_size * input_dim * output_dim
 
 
 def linear_flop_jit(inputs: List[Any], outputs: List[Any]) -> Number:
@@ -69,12 +67,11 @@ def linear_flop_jit(inputs: List[Any], outputs: List[Any]) -> Number:
     """
     # Inputs is a list of length 3; unlike aten::addmm, it is the first
     # two elements that are relevant.
-    input_shapes = [v.shape for v in inputs[0:2]]
+    input_shapes = [v.shape for v in inputs[:2]]
     # input_shapes[0]: [dim0, dim1, ..., input_feature_dim]
     # input_shapes[1]: [output_feature_dim, input_feature_dim]
     assert input_shapes[0][-1] == input_shapes[1][-1]
-    flops = reduce(operator.mul, input_shapes[0]) * input_shapes[1][0]
-    return flops
+    return reduce(operator.mul, input_shapes[0]) * input_shapes[1][0]
 
 
 def bmm_flop_jit(inputs: List[Any], outputs: List[Any]) -> Number:
@@ -87,8 +84,7 @@ def bmm_flop_jit(inputs: List[Any], outputs: List[Any]) -> Number:
     input_shapes = [v.shape for v in inputs]
     n, c, t = input_shapes[0]
     d = input_shapes[-1][-1]
-    flops = n * c * t * d
-    return flops
+    return n * c * t * d
 
 
 def baddbmm_flop_jit(inputs: List[Any], outputs: List[Any]) -> Number:
@@ -100,8 +96,7 @@ def baddbmm_flop_jit(inputs: List[Any], outputs: List[Any]) -> Number:
     assert len(inputs) == 3, len(inputs)
     n, c, t = inputs[1].shape
     d = inputs[2].shape[-1]
-    flops = n * c * t * d
-    return flops
+    return n * c * t * d
 
 
 def conv_flop_count(
@@ -125,8 +120,11 @@ def conv_flop_count(
     """
     batch_size = x_shape[0]
     conv_shape = (x_shape if transposed else out_shape)[2:]
-    flops = batch_size * reduce(operator.mul, w_shape) * reduce(operator.mul, conv_shape)
-    return flops
+    return (
+        batch_size
+        * reduce(operator.mul, w_shape)
+        * reduce(operator.mul, conv_shape)
+    )
 
 
 def conv_flop_jit(inputs: List[Any], outputs: List[Any]):

@@ -30,11 +30,12 @@ class CostGraph:
         self._build_cost_graph()
 
     def _remove_invalid_node(self, node, attr_name):
-        remove_list = []
         target_node_list = getattr(node, attr_name, [])
-        for target_node in target_node_list:
-            if target_node not in self.nodes:
-                remove_list.append(target_node)
+        remove_list = [
+            target_node
+            for target_node in target_node_list
+            if target_node not in self.nodes
+        ]
         for element in remove_list:
             target_node_list.remove(element)
 
@@ -161,14 +162,7 @@ class CostGraph:
                 for j in range(self.node_lens[child_node]):
                     dst_strate_index = merge_map[i]
                     edge_cost[(i, j)] = self.edge_costs[old_node_pair][(dst_strate_index, j)]
-            if new_node_pair not in self.edge_costs:
-                self.edge_costs[new_node_pair] = edge_cost
-            else:
-                # we should accumulate the resharding costs if args of child node contain
-                # both src node and dst node.
-                for index_pair, resharding_cost in self.edge_costs[new_node_pair]:
-                    self.edge_costs[new_node_pair][index_pair] += edge_cost[index_pair]
-
+            self.edge_costs[new_node_pair] = edge_cost
         # connect src node and children of dst node
         dst_node.parents.remove(src_node)
         src_node.children.remove(dst_node)
@@ -199,7 +193,8 @@ class CostGraph:
         for (src_node, dst_node) in self.merge_pair:
             self.merge_node(src_node, dst_node)
         self.merge_pair.reverse()
-        reindexing_following_dict = {}
-        for dst, src in self.following_dict.items():
-            reindexing_following_dict[dst] = self._reindexing_src(src)
+        reindexing_following_dict = {
+            dst: self._reindexing_src(src)
+            for dst, src in self.following_dict.items()
+        }
         self.following_dict = reindexing_following_dict

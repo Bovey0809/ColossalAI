@@ -26,9 +26,11 @@ class UnaryElementwiseHandler(MetaInfoNodeHandler):
 
     def get_strategy_generator(self) -> List[StrategyGenerator]:
         op_data_mapping = self.get_operation_data_mapping()
-        generators = []
-        generators.append(UnaryElementwiseGenerator(op_data_mapping, self.device_mesh, self.node.args[0]))
-        return generators
+        return [
+            UnaryElementwiseGenerator(
+                op_data_mapping, self.device_mesh, self.node.args[0]
+            )
+        ]
 
     def get_operation_data_mapping(self) -> Dict[str, OperationData]:
         # use transposed shape for strategies
@@ -38,6 +40,4 @@ class UnaryElementwiseHandler(MetaInfoNodeHandler):
                                                data=self.node.args[0]._meta_data)
         physical_output = OperationData(name=str(self.node), type=OperationDataType.OUTPUT, data=self.node._meta_data)
 
-        mapping = {"input": physical_input_operand, "output": physical_output}
-
-        return mapping
+        return {"input": physical_input_operand, "output": physical_output}

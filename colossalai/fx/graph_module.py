@@ -127,10 +127,7 @@ class {module_name}(torch.nn.Module):
                 safe_reprs = [
                     nn.Linear, nn.Conv1d, nn.Conv2d, nn.Conv3d, nn.BatchNorm1d, nn.BatchNorm2d, nn.BatchNorm3d
                 ]
-                if type(module) in safe_reprs:
-                    return f"{module.__repr__()}"
-                else:
-                    return None
+                return f"{module.__repr__()}" if type(module) in safe_reprs else None
 
             blobified_modules = []
             for module_name, module in self.named_children():
@@ -162,7 +159,7 @@ class {module_name}(torch.nn.Module):
             init_file = folder / '__init__.py'
             init_file.write_text('from .module import *')
 
-            if len(blobified_modules) > 0:
+            if blobified_modules:
                 warnings.warn("Was not able to save the following children modules as reprs -"
                               f"saved as pickled files instead: {blobified_modules}")
 

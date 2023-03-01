@@ -12,10 +12,7 @@ from .process_group_initializer import ProcessGroupInitializer
 
 
 def _check_depth_env_var(depth):
-    # check global variable
-    env_depth = env.depth_3d
-
-    if env_depth:
+    if env_depth := env.depth_3d:
         assert int(env_depth) == depth, \
             'DEPTH_3D has been set in the current environment and ' \
             'does not match with the value passed to this initialized'
@@ -316,11 +313,10 @@ class Initializer_3D(ProcessGroupInitializer):
             List[Tuple (local_rank, group_world_size, process_group, ranks_in_group, mode)]:
                 Whole 3D tensor parallelism's information in a list of tuples.
         """
-        parallel_setting = [
+        return [
             self.input_initializer.init_dist_group(),
             self.weight_initializer.init_dist_group(),
             self.output_initializer.init_dist_group(),
             self.input_x_weight_initializer.init_dist_group(),
-            self.output_x_weight_initializer.init_dist_group()
+            self.output_x_weight_initializer.init_dist_group(),
         ]
-        return parallel_setting

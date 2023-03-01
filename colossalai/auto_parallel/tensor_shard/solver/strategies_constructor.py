@@ -102,9 +102,6 @@ class StrategiesConstructor:
 
             if _check_no_strategy_for_node(node):
                 self.no_strategy_nodes.append(node)
-                pass
-
-            # placeholder node
             elif node.op == 'placeholder':
                 if self.solver_options.dataloader_option == DataloaderOption.DISTRIBUTED:
                     placeholder_option = 'distributed'
@@ -117,7 +114,6 @@ class StrategiesConstructor:
                                                          placeholder_option=placeholder_option)
                 placeholder_handler.register_strategy()
 
-            # get_attr node
             elif node.op == 'get_attr':
                 getattr_handler = GetattrHandler(node,
                                                  self.device_mesh,
@@ -126,7 +122,6 @@ class StrategiesConstructor:
                                                  solver_perference=self.solver_options.solver_perference)
                 getattr_handler.register_strategy()
 
-            # call_module node
             elif node.op == 'call_module':
                 target = node.target
                 submod = self.root_module.get_submodule(target)
@@ -141,7 +136,6 @@ class StrategiesConstructor:
                 if hasattr(handler, 'metainfo_vector'):
                     setattr(node, 'metainfo_vector', handler.metainfo_vector)
 
-            # call_function node
             elif node.op == 'call_function':
                 target = node.target
                 handler = operator_registry.get(target)(node,
@@ -154,7 +148,6 @@ class StrategiesConstructor:
                 if hasattr(handler, 'metainfo_vector'):
                     setattr(node, 'metainfo_vector', handler.metainfo_vector)
 
-            # call_method node
             elif node.op == 'call_method':
                 method = getattr(node.args[0]._meta_data.__class__, node.target)
                 handler = operator_registry.get(method)(node,
@@ -167,7 +160,6 @@ class StrategiesConstructor:
                 if hasattr(handler, 'metainfo_vector'):
                     setattr(node, 'metainfo_vector', handler.metainfo_vector)
 
-            # output node
             elif node.op == 'output':
                 if self.solver_options.dataloader_option == DataloaderOption.DISTRIBUTED:
                     output_option = 'distributed'

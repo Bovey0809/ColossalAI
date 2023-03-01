@@ -16,8 +16,7 @@ def get_time_stamp() -> int:
     """
 
     torch.cuda.synchronize()
-    time_stamp = time.time()
-    return time_stamp
+    return time.time()
 
 
 def get_memory_states() -> Tuple[float]:
@@ -49,15 +48,11 @@ def find_all_configs(device_cnt: int) -> List[Dict]:
 
     def _is_square(num):
         # 2D parallel should be implemented with at least 2 devices.
-        if num <= 1:
-            return False
-        return math.floor(math.sqrt(num))**2 == num
+        return False if num <= 1 else math.floor(math.sqrt(num))**2 == num
 
     def _is_cube(num):
         # 3D parallel should be implemented with at least 2 devices.
-        if num <= 1:
-            return False
-        return math.floor(num**(1. / 3.))**3 == num
+        return False if num <= 1 else math.floor(num**(1. / 3.))**3 == num
 
     config_list = []
 
@@ -148,11 +143,10 @@ def get_batch_data(dim: int, batch_size: int, seq_length: int, mode: ParallelMod
     """
 
     if mode in ['2d', '2.5d']:
-        batch_size = batch_size // 2
-        dim = dim // 2
+        batch_size //= 2
+        dim //= 2
     elif mode == '3d':
-        batch_size = batch_size // 4
-        dim = dim // 2
+        batch_size //= 4
+        dim //= 2
 
-    data = torch.rand(batch_size, seq_length, dim).cuda()
-    return data
+    return torch.rand(batch_size, seq_length, dim).cuda()

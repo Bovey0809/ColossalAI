@@ -31,9 +31,8 @@ def customized_split_pass_for_gpt2(gm: torch.fx.GraphModule, pp_size: int, parti
     for node in mod_graph.nodes:
         if pp_size <= 1:
             break
-        if node.op == "call_module":
-            if node.target in valid_children:
-                accumulate_layer_amount += 1
+        if node.op == "call_module" and node.target in valid_children:
+            accumulate_layer_amount += 1
         if accumulate_layer_amount == list_of_part[part_index]:
             part_index += 1
             pp_size -= 1
@@ -53,9 +52,8 @@ def split_with_split_nodes_pass_for_gp2_test(annotated_gm: torch.fx.GraphModule)
 
     def eliminate_unused_placeholders(gm):
         for node in gm.graph.nodes:
-            if node.op == 'placeholder':
-                if not len(node.users):
-                    gm.graph.erase_node(node)
+            if node.op == 'placeholder' and not len(node.users):
+                gm.graph.erase_node(node)
         gm.recompile()
         return gm
 

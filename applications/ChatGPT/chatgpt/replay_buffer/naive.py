@@ -53,5 +53,4 @@ class NaiveReplayBuffer(ReplayBuffer):
         return self.items[idx]
 
     def collate_fn(self, batch) -> Experience:
-        experience = make_experience_batch(batch)
-        return experience
+        return make_experience_batch(batch)

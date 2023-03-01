@@ -19,9 +19,7 @@ class SplitHandler(NodeHandler):
 
     def get_strategy_generator(self) -> List[StrategyGenerator]:
         op_data_mapping = self.get_operation_data_mapping()
-        generators = []
-        generators.append(SplitGenerator(op_data_mapping, self.device_mesh, self.node.args[0]))
-        return generators
+        return [SplitGenerator(op_data_mapping, self.device_mesh, self.node.args[0])]
 
     def get_operation_data_mapping(self) -> Dict[str, OperationData]:
         # check if the input operand is a parameter
@@ -37,11 +35,7 @@ class SplitHandler(NodeHandler):
             # (input, split_size, split_dim)
             split_dim = self.node.args[2]
         else:
-            if self.node.kwargs:
-                split_dim = self.node.kwargs['dim']
-            else:
-                split_dim = 0
-
+            split_dim = self.node.kwargs['dim'] if self.node.kwargs else 0
         num_dims = self.node.args[0]._meta_data.dim()
         # recover negative value to positive
         if split_dim < 0:
@@ -53,10 +47,8 @@ class SplitHandler(NodeHandler):
         output_data = self.node._meta_data
         physical_output_operand = OperationData(name=str(self.node), type=OperationDataType.OUTPUT, data=output_data)
 
-        mapping = {
+        return {
             "input": physical_input_operand,
             "split_info": physical_shape_operand,
-            "output": physical_output_operand
+            "output": physical_output_operand,
         }
-
-        return mapping

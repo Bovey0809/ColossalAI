@@ -121,7 +121,7 @@ def transformer_mlp_pass(graph_module: torch.fx.GraphModule, process_group: Proc
                 module = node.graph.owning_module.get_submodule(node.target)
                 if module.__class__ not in ELEMENTWISE_MODULE_OP:
                     start_tracking = False
-            elif node.op == 'call_function' or node.op == 'call_method':
+            elif node.op in ['call_function', 'call_method']:
                 if node.target not in ELEMENTWISE_FUNC_OP:
                     start_tracking = False
             elif len(node.users.keys()) > 1:

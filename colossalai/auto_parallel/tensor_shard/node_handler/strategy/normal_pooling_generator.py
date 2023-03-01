@@ -29,7 +29,10 @@ class NormalPoolStrategyGenerator(StrategyGenerator):
         '''
         input_op_data = self.op_data['input']
         assert input_op_data.data.dim() in (
-            3, 4, 5), f'We suppose the dim of input fed into Pool op should in range of [3, 5].'
+            3,
+            4,
+            5,
+        ), 'We suppose the dim of input fed into Pool op should in range of [3, 5].'
 
     def update_compute_cost(self, strategy: ShardingStrategy) -> TrainCycleItem:
         '''
@@ -69,12 +72,12 @@ class NormalPoolStrategyGenerator(StrategyGenerator):
         backward_size_mapping.pop("output")
         # compute fwd cost incurred
         # fwd_cost = input + output
-        fwd_activation_cost = sum([v for k, v in forward_size_mapping.items()])
+        fwd_activation_cost = sum(v for k, v in forward_size_mapping.items())
         fwd_mem_cost = MemoryCost(activation=fwd_activation_cost, parameter=0)
 
         # compute bwd cost incurred
         # bwd_cost = input_grad
-        bwd_activation_cost = sum([v for k, v in backward_size_mapping.items()])
+        bwd_activation_cost = sum(v for k, v in backward_size_mapping.items())
         bwd_mem_cost = MemoryCost(activation=bwd_activation_cost, parameter=0)
 
         # compute total cost
@@ -91,11 +94,11 @@ class NormalPoolStrategyGenerator(StrategyGenerator):
         name = f'{sharding_spec_mapping["output"].sharding_sequence} = {sharding_spec_mapping["input"].sharding_sequence}'
         communication_action_mapping = {}
 
-        strategy = self.get_sharding_strategy(name=name,
-                                              sharding_spec_mapping=sharding_spec_mapping,
-                                              communication_action_mapping=communication_action_mapping)
-
-        return strategy
+        return self.get_sharding_strategy(
+            name=name,
+            sharding_spec_mapping=sharding_spec_mapping,
+            communication_action_mapping=communication_action_mapping,
+        )
 
     def enumerate_all_possible_batch_dimensions_dim_partition(self, mesh_dim_0, mesh_dim_1):
         dim_partition_list = []

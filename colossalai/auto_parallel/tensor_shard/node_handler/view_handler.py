@@ -20,9 +20,7 @@ class ViewHandler(NodeHandler):
 
     def get_strategy_generator(self) -> List[StrategyGenerator]:
         op_data_mapping = self.get_operation_data_mapping()
-        generators = []
-        generators.append(ViewGenerator(op_data_mapping, self.device_mesh, self.node.args[0]))
-        return generators
+        return [ViewGenerator(op_data_mapping, self.device_mesh, self.node.args[0])]
 
     def get_operation_data_mapping(self) -> Dict[str, OperationData]:
         # use transposed shape for strategies
@@ -43,10 +41,8 @@ class ViewHandler(NodeHandler):
         output_data = self.node._meta_data
         physical_output_operand = OperationData(name=str(self.node), type=OperationDataType.OUTPUT, data=output_data)
 
-        mapping = {
+        return {
             "input": physical_input_operand,
             "tgt_shape": physical_shape_operand,
-            "output": physical_output_operand
+            "output": physical_output_operand,
         }
-
-        return mapping

@@ -32,12 +32,11 @@ def _gen_chunk_slice_dim(chunk_dim: int, chunk_indice_name: str, shape: List) ->
     new_shape = "["
     for idx, _ in enumerate(shape):
         if idx == chunk_dim:
-            new_shape += "%s:%s + chunk_size" % (chunk_indice_name, chunk_indice_name)
+            new_shape += f"{chunk_indice_name}:{chunk_indice_name} + chunk_size"
         else:
             new_shape += ":"
         new_shape += ", "
-    new_shape = new_shape[:-2] + "]"
-    return new_shape
+    return f"{new_shape[:-2]}]"
 
 
 def _gen_loop_start(chunk_input: List[Node], chunk_output: List[Node], chunk_ouput_dim: int, chunk_size=2) -> str:
@@ -61,17 +60,15 @@ def _gen_loop_start(chunk_input: List[Node], chunk_output: List[Node], chunk_oup
     input_node = chunk_input[0]
 
     context = ""
-    for i in range(len(chunk_output)):
-        shape_str = str(list(get_node_shape(chunk_output[i])))
-        if get_node_name(chunk_output[i]) == "split":
-            tensor_str = "torch.empty(%s, dtype=%s.dtype, device=%s.device), " % (shape_str, input_node.name,
-                                                                                  input_node.name)
-            tensor_str = tensor_str * len(chunk_output[i].meta['tensor_meta'])
-            tensor_str = "[" + tensor_str[:-2] + "]"
-            context += "%s = %s;  " % (chunk_output[i].name, tensor_str)
+    for item in chunk_output:
+        shape_str = str(list(get_node_shape(item)))
+        if get_node_name(item) == "split":
+            tensor_str = f"torch.empty({shape_str}, dtype={input_node.name}.dtype, device={input_node.name}.device), "
+            tensor_str = tensor_str * len(item.meta['tensor_meta'])
+            tensor_str = f"[{tensor_str[:-2]}]"
+            context += f"{item.name} = {tensor_str};  "
         else:
-            context += "%s = torch.empty(%s, dtype=%s.dtype, device=%s.device);  " % (chunk_output[i].name, shape_str,
-                                                                                      input_node.name, input_node.name)
+            context += f"{item.name} = torch.empty({shape_str}, dtype={input_node.name}.dtype, device={input_node.name}.device);  "
 
     out_shape = get_node_shape(chunk_output[0])
     chunk_shape = out_shape[chunk_ouput_dim[0]]
@@ -100,10 +97,13 @@ def _gen_loop_end(chunk_inputs: List[Node], chunk_non_compute_inputs: List[Node]
     context = "chunk_size = None"
     # determine if its the last use for chunk input
     for chunk_input in chunk_inputs + chunk_non_compute_inputs:
-        if all([search_chunk.node_mgr.find_node_idx(user) <= chunk_outputs_idx for user in chunk_input.users.keys()]):
-            context += ";  %s = None" % chunk_input.name
+        if all(
+            search_chunk.node_mgr.find_node_idx(user) <= chunk_outputs_idx
+            for user in chunk_input.users.keys()
+        ):
+            context += f";  {chunk_input.name} = None"
     for chunk_output_non_tensor, chunk_output_non_tensor_val in chunk_outputs_non_tensor.items():
-        context += ";  %s = %s" % (chunk_output_non_tensor.name, chunk_output_non_tensor_val)
+        context += f";  {chunk_output_non_tensor.name} = {chunk_output_non_tensor_val}"
     context += "\n"
     return context
 
@@ -128,8 +128,9 @@ def _replace_reshape_size(context: str, node_name: str, reshape_size_dict: Dict)
     """
     if node_name not in reshape_size_dict:
         return context
-    context = context.replace(reshape_size_dict[node_name][0], reshape_size_dict[node_name][1])
-    return context
+    return context.replace(
+        reshape_size_dict[node_name][0], reshape_size_dict[node_name][1]
+    )
 
 
 def _replace_new_tensor_like_shape(
@@ -200,19 +201,18 @@ def _add_node_slice(
                 if idx == node_idx:
                     chunk_slice = _gen_chunk_slice_dim(dim[0], "chunk_idx", get_node_shape(chunk_node))
                     body[-1] = _replace_name(body[-1], chunk_node.name, chunk_node.name + chunk_slice)
-        # outputs node
-        else:
-            if chunk_node.name == node.name or (chunk_node.name in [i.name for i in node.all_input_nodes]):
-                chunk_slice = _gen_chunk_slice_dim(chunk_nodes_dim[region_idx][chunk_node_idx], "chunk_idx",
-                                                   get_node_shape(chunk_node))
-                if get_node_name(chunk_node) == "split":
-                    split_chunk_slice = ""
-                    for i in range(len(chunk_node.meta['tensor_meta'])):
-                        split_chunk_slice += "%s[%d]%s, " % (chunk_node.name, i, chunk_slice)
-                    split_chunk_slice = split_chunk_slice[:-2]
-                    body[-1] = _replace_name(body[-1], chunk_node.name, split_chunk_slice)
-                else:
-                    body[-1] = _replace_name(body[-1], chunk_node.name, chunk_node.name + chunk_slice)
+        elif chunk_node.name == node.name or (chunk_node.name in [i.name for i in node.all_input_nodes]):
+            chunk_slice = _gen_chunk_slice_dim(chunk_nodes_dim[region_idx][chunk_node_idx], "chunk_idx",
+                                               get_node_shape(chunk_node))
+            if get_node_name(chunk_node) == "split":
+                split_chunk_slice = "".join(
+                    "%s[%d]%s, " % (chunk_node.name, i, chunk_slice)
+                    for i in range(len(chunk_node.meta['tensor_meta']))
+                )
+                split_chunk_slice = split_chunk_slice[:-2]
+                body[-1] = _replace_name(body[-1], chunk_node.name, split_chunk_slice)
+            else:
+                body[-1] = _replace_name(body[-1], chunk_node.name, chunk_node.name + chunk_slice)
     return body
 
 
@@ -275,8 +275,8 @@ def emit_code_with_chunk(
                     chunk_infos[region_idx]["chunk_size"],
                 ))
 
+        emit_node_func(node, body)
         if within_chunk_region:
-            emit_node_func(node, body)
             # replace input var with chunk var
             body = _add_node_slice(chunk_inputs, region_idx, chunk_inputs_dim, node_idx, body, node)
             # replace output var with chunk var
@@ -287,12 +287,10 @@ def emit_code_with_chunk(
             body = _replace_new_tensor_shape(search_chunk, chunk_infos, region_idx, node_idx, node, body)
             # reassgin reshape size
             body[-1] = _replace_reshape_size(body[-1], node.name, chunk_infos[region_idx]["reshape_size"])
-            body[-1] = "    " + body[-1]
+            body[-1] = f"    {body[-1]}"
             delete_unused_value_func(node, body, chunk_inputs_names)
-        else:
-            emit_node_func(node, body)
-            if node_idx not in chunk_inputs:
-                delete_unused_value_func(node, body, chunk_inputs_names)
+        elif node_idx not in chunk_inputs:
+            delete_unused_value_func(node, body, chunk_inputs_names)
 
         # generate chunk region end
         if node_idx in chunk_ends:
@@ -375,12 +373,7 @@ if AUTOCHUNK_AVAILABLE:
                         # Assign global names for each of the inner type variables.
                         args = [type_repr(arg) for arg in o.__args__]
 
-                        if len(args) == 0:
-                            # Bare type, such as `typing.Tuple` with no subscript
-                            # This code-path used in Python < 3.9
-                            return origin_typename
-
-                        return f'{origin_typename}[{",".join(args)}]'
+                        return f'{origin_typename}[{",".join(args)}]' if args else origin_typename
                     else:
                         # Bare type, such as `typing.Tuple` with no subscript
                         # This code-path used in Python 3.9+
@@ -401,9 +394,7 @@ if AUTOCHUNK_AVAILABLE:
 
                 args_s = ", ".join(_get_repr(a) for a in args)
                 kwargs_s = ", ".join(f"{k} = {_get_repr(v)}" for k, v in kwargs.items())
-                if args_s and kwargs_s:
-                    return f"{args_s}, {kwargs_s}"
-                return args_s or kwargs_s
+                return f"{args_s}, {kwargs_s}" if args_s and kwargs_s else args_s or kwargs_s
 
             # Run through reverse nodes and record the first instance of a use
             # of a given node. This represents the *last* use of the node in the
@@ -448,7 +439,7 @@ if AUTOCHUNK_AVAILABLE:
                 maybe_type_annotation = ("" if node.type is None else f" : {type_repr(node.type)}")
                 if node.op == "placeholder":
                     assert isinstance(node.target, str)
-                    maybe_default_arg = ("" if not node.args else f" = {repr(node.args[0])}")
+                    maybe_default_arg = f" = {repr(node.args[0])}" if node.args else ""
                     free_vars.append(f"{node.target}{maybe_type_annotation}{maybe_default_arg}")
                     raw_name = node.target.replace("*", "")
                     if raw_name != repr(node):
@@ -520,13 +511,13 @@ if AUTOCHUNK_AVAILABLE:
                 self.chunk_infos,
             )
 
-            if len(body) == 0:
+            if not body:
                 # If the Graph has no non-placeholder nodes, no lines for the body
                 # have been emitted. To continue to have valid Python code, emit a
                 # single pass statement
                 body.append("pass\n")
 
-            if len(wrapped_fns) > 0:
+            if wrapped_fns:
                 wrap_name = add_global("wrap", torch.fx.wrap)
                 wrap_stmts = "\n".join([f'{wrap_name}("{name}")' for name in wrapped_fns])
             else:
@@ -545,7 +536,7 @@ if AUTOCHUNK_AVAILABLE:
             prologue = prologue
 
             code = "".join(body)
-            code = "\n".join("    " + line for line in code.split("\n"))
+            code = "\n".join(f"    {line}" for line in code.split("\n"))
             fn_code = f"""
 {wrap_stmts}
 

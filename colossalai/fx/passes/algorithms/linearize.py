@@ -26,10 +26,7 @@ def _is_cop(target: Any) -> bool:
         bool
     """
 
-    if isinstance(target, str):
-        return target in COPS
-    else:
-        return target.__name__ in COPS
+    return target in COPS if isinstance(target, str) else target.__name__ in COPS
 
 
 def linearize(gm: GraphModule, cnode: List[str] = None) -> List[List[Node]]:
@@ -54,7 +51,9 @@ def linearize(gm: GraphModule, cnode: List[str] = None) -> List[List[Node]]:
             bool
         """
 
-        return not sum([v for _, v in deps.items()]) and not any(map(is_inplace, n.users))
+        return not sum(v for _, v in deps.items()) and not any(
+            map(is_inplace, n.users)
+        )
 
     # make sure that item in cnode is valid
     if cnode:
@@ -73,7 +72,7 @@ def linearize(gm: GraphModule, cnode: List[str] = None) -> List[List[Node]]:
     region = []
 
     for n in gm.graph.nodes:
-        if n.op != "placeholder" and n.op != "output":
+        if n.op not in ["placeholder", "output"]:
             for n_par in n._input_nodes:
                 if n_par.op != "placeholder" and n_par.name not in cnode:
                     deps[n_par] -= 1

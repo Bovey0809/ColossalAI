@@ -38,7 +38,7 @@ class PlaceholderGenerator(StrategyGenerator):
 
         # compute fwd cost incurred
         # fwd_cost = output
-        fwd_activation_cost = sum([v for k, v in forward_size_mapping.items()])
+        fwd_activation_cost = sum(v for k, v in forward_size_mapping.items())
         fwd_mem_cost = MemoryCost(activation=fwd_activation_cost, parameter=0)
 
         bwd_mem_cost = MemoryCost(activation=0, parameter=0)
@@ -60,11 +60,11 @@ class PlaceholderGenerator(StrategyGenerator):
 
         name = 'Replica Placeholder'
 
-        strategy = self.get_sharding_strategy(name=name,
-                                              sharding_spec_mapping=sharding_spec_mapping,
-                                              communication_action_mapping=communication_action_mapping)
-
-        return strategy
+        return self.get_sharding_strategy(
+            name=name,
+            sharding_spec_mapping=sharding_spec_mapping,
+            communication_action_mapping=communication_action_mapping,
+        )
 
     def distributed_placeholder(self, mesh_list) -> ShardingStrategy:
         """
@@ -80,11 +80,11 @@ class PlaceholderGenerator(StrategyGenerator):
 
         name = 'Distributed Placeholder'
 
-        strategy = self.get_sharding_strategy(name=name,
-                                              sharding_spec_mapping=sharding_spec_mapping,
-                                              communication_action_mapping=communication_action_mapping)
-
-        return strategy
+        return self.get_sharding_strategy(
+            name=name,
+            sharding_spec_mapping=sharding_spec_mapping,
+            communication_action_mapping=communication_action_mapping,
+        )
 
     def collate_strategies(self) -> List[ShardingStrategy]:
         strategy_list = []
